@@ -1,0 +1,362 @@
+
+{% extends "base.html" %}
+{% block title %}Admin Dashboard — KLP Roorkee{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-4">
+
+    <!-- Dashboard Header -->
+    <div class="admin-dashboard-header d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0"><i class="bi bi-shield-check me-2 text-primary"></i>Admin Dashboard</h3>
+            <p class="text-muted mb-0 small">KLP Roorkee — Student Result Management System</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('admin.add_student') }}" class="btn btn-primary">
+                <i class="bi bi-person-plus me-2"></i>Add Student
+            </a>
+            <a href="{{ url_for('admin.logout') }}" class="btn btn-outline-danger">
+                <i class="bi bi-box-arrow-right me-2"></i>Logout
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="admin-stat-card bg-primary text-white">
+                <div class="admin-stat-icon"><i class="bi bi-people-fill"></i></div>
+                <div class="admin-stat-num">{{ total_students }}</div>
+                <div class="admin-stat-label">Total Students</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="admin-stat-card bg-success text-white">
+                <div class="admin-stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+                <div class="admin-stat-num">{{ students | selectattr('semester_result', 'equalto', 'PASS') | list | length }}</div>
+                <div class="admin-stat-label">Passed</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="admin-stat-card bg-danger text-white">
+                <div class="admin-stat-icon"><i class="bi bi-x-circle-fill"></i></div>
+                <div class="admin-stat-num">{{ students | selectattr('semester_result', 'equalto', 'FAIL') | list | length }}</div>
+                <div class="admin-stat-label">Failed</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="admin-stat-card bg-warning text-dark">
+                <div class="admin-stat-icon"><i class="bi bi-building"></i></div>
+                <div class="admin-stat-num">6</div>
+                <div class="admin-stat-label">Departments</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-4 col-md-6">
+            <a href="{{ url_for('admin.add_student') }}" class="admin-quick-action-card text-decoration-none">
+                <i class="bi bi-person-plus-fill fs-2 text-primary mb-2"></i>
+                <h6 class="fw-bold">Add New Student</h6>
+                <p class="text-muted small mb-0">Register a new student and enter their result data</p>
+            </a>
+        </div>
+        <div class="col-lg-4 col-md-6">
+            <a href="{{ url_for('result.result_home') }}" target="_blank" class="admin-quick-action-card text-decoration-none">
+                <i class="bi bi-eye-fill fs-2 text-success mb-2"></i>
+                <h6 class="fw-bold">View Result Portal</h6>
+                <p class="text-muted small mb-0">See the student-facing result search page</p>
+            </a>
+        </div>
+        <div class="col-lg-4 col-md-6">
+            <a href="{{ url_for('main.home') }}" target="_blank" class="admin-quick-action-card text-decoration-none">
+                <i class="bi bi-house-fill fs-2 text-warning mb-2"></i>
+                <h6 class="fw-bold">View Website</h6>
+                <p class="text-muted small mb-0">Open the public-facing college website</p>
+            </a>
+        </div>
+    </div>
+
+    <!-- Students Table -->
+    <div class="admin-table-card">
+        <div class="admin-table-header d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0"><i class="bi bi-table me-2"></i>All Students</h5>
+            <div class="d-flex gap-2 align-items-center">
+                <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Search students..." style="width: 220px;">
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="studentsTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Roll Number</th>
+                        <th>Enrollment No.</th>
+                        <th>Branch</th>
+                        <th>Semester</th>
+                        <th>SGPA</th>
+                        <th>Result</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in students %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td class="fw-semibold">{{ student.name }}</td>
+                        <td><code>{{ student.roll_number }}</code></td>
+                        <td><code>{{ student.enrollment_no }}</code></td>
+                        <td>{{ student.branch }}</td>
+                        <td>Sem {{ student.semester }}</td>
+                        <td>{{ student.sgpa or '—' }}</td>
+                        <td>
+                            {% if student.semester_result == 'PASS' %}
+                                <span class="badge bg-success">PASS</span>
+                            {% elif student.semester_result == 'FAIL' %}
+                                <span class="badge bg-danger">FAIL</span>
+                            {% elif student.semester_result == 'BACKLOG' %}
+                                <span class="badge bg-warning text-dark">BACKLOG</span>
+                            {% else %}
+                                <span class="badge bg-secondary">N/A</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex gap-1">
+                                <a href="{{ url_for('admin.view_student', student_id=student.id) }}"
+                                   class="btn btn-sm btn-outline-primary" title="View Detail">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="{{ url_for('admin.add_subjects', student_id=student.id) }}"
+                                   class="btn btn-sm btn-outline-success" title="Add Subjects">
+                                    <i class="bi bi-plus-circle"></i>
+                                </a>
+                                <a href="{{ url_for('admin.edit_student', student_id=student.id) }}"
+                                   class="btn btn-sm btn-outline-warning" title="Edit Student">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <a href="{{ url_for('result.show_result', student_id=student.id) }}"
+                                   class="btn btn-sm btn-outline-info" title="View Result" target="_blank">
+                                    <i class="bi bi-award"></i>
+                                </a>
+                                <form method="POST" action="{{ url_for('admin.delete_student', student_id=student.id) }}"
+                                      class="d-inline" onsubmit="return confirm('Delete {{ student.name }} and ALL their data? This cannot be undone.');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Student">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                            No students added yet. <a href="{{ url_for('admin.add_student') }}">Add the first student</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Simple live search/filter for the students table
+    document.getElementById('searchInput').addEventListener('input', function() {
+        const query = this.value.toLowerCase();
+        const rows = document.querySelectorAll('#studentsTable tbody tr');
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(query) ? '' : 'none';
+        });
+    });
+</script>
+{% endblock %}
+
+================================================================================  END OF: templates/admin_dashboard.html  =====
+
+
+################################################################################
+#  FILE 14 of 18: templates/admin_add_student.html
+#  TYPE: HTML
+#  PURPOSE: Add or edit student form
+################################################################################
+
+{% extends "base.html" %}
+{% block title %}{{ 'Edit Student' if editing else 'Add Student' }} — Admin | KLP Roorkee{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+
+            <!-- Breadcrumb -->
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Admin Dashboard</a></li>
+                    <li class="breadcrumb-item active">{{ 'Edit Student' if editing else 'Add New Student' }}</li>
+                </ol>
+            </nav>
+
+            <div class="admin-form-card">
+                <div class="admin-form-header">
+                    <h4 class="mb-0">
+                        <i class="bi bi-{{ 'pencil-square' if editing else 'person-plus' }} me-2"></i>
+                        {{ 'Edit Student Details' if editing else 'Add New Student' }}
+                    </h4>
+                    <p class="text-white-75 small mb-0 mt-1">
+                        {% if editing %}Update the student's information below.{% else %}Fill in the student's personal and academic details. You'll add subjects on the next step.{% endif %}
+                    </p>
+                </div>
+                <div class="admin-form-body">
+                    <form method="POST" action="{{ url_for('admin.edit_student', student_id=student.id) if editing else url_for('admin.add_student') }}">
+
+                        <div class="form-section-title">Personal Information</div>
+
+                        <div class="row g-3 mb-4">
+                            <!-- Student Name -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold required-field">Student Full Name</label>
+                                <input type="text" class="form-control" name="name"
+                                       value="{{ student.name if editing else '' }}"
+                                       placeholder="e.g. Ram Kumar Sharma" required>
+                            </div>
+                            <!-- Father's Name -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold required-field">Father's Name</label>
+                                <input type="text" class="form-control" name="father_name"
+                                       value="{{ student.father_name if editing else '' }}"
+                                       placeholder="e.g. Shri Rajesh Kumar Sharma" required>
+                            </div>
+
+                            <!-- Roll Number -->
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold required-field">Roll Number</label>
+                                <input type="text" class="form-control" name="roll_number"
+                                       value="{{ student.roll_number if editing else '' }}"
+                                       placeholder="e.g. 2301001" required>
+                                <div class="form-text">Unique exam roll number</div>
+                            </div>
+                            <!-- Enrollment Number -->
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold required-field">Enrollment Number</label>
+                                <input type="text" class="form-control" name="enrollment_no"
+                                       value="{{ student.enrollment_no if editing else '' }}"
+                                       placeholder="e.g. ENR2301001" required>
+                                <div class="form-text">College enrollment/registration number</div>
+                            </div>
+                            <!-- Category -->
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold required-field">Category</label>
+                                <select class="form-select" name="category" required>
+                                    <option value="" disabled {% if not editing %}selected{% endif %}>Select Category</option>
+                                    {% for cat in ['GEN', 'OBC', 'SC', 'ST', 'EWS', 'OBC-NCL'] %}
+                                    <option value="{{ cat }}" {% if editing and student.category == cat %}selected{% endif %}>{{ cat }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-section-title">Academic Information</div>
+
+                        <div class="row g-3 mb-4">
+                            <!-- Branch -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold required-field">Branch / Department</label>
+                                <select class="form-select" name="branch" required>
+                                    <option value="" disabled {% if not editing %}selected{% endif %}>Select Branch</option>
+                                    {% for branch in [
+                                        'Civil Engineering',
+                                        'Mechanical Engineering',
+                                        'Electrical Engineering',
+                                        'Electronics Engineering',
+                                        'AI & Machine Learning',
+                                        'Computer Communication & Networking'
+                                    ] %}
+                                    <option value="{{ branch }}" {% if editing and student.branch == branch %}selected{% endif %}>{{ branch }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <!-- Semester -->
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold required-field">Semester</label>
+                                <select class="form-select" name="semester" required>
+                                    <option value="" disabled {% if not editing %}selected{% endif %}>Select</option>
+                                    {% for sem in range(1, 7) %}
+                                    <option value="{{ sem }}" {% if editing and student.semester == sem %}selected{% endif %}>Semester {{ sem }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <!-- Academic Year -->
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold required-field">Academic Year</label>
+                                <input type="text" class="form-control" name="academic_year"
+                                       value="{{ student.academic_year if editing else '' }}"
+                                       placeholder="e.g. 2023-2024" required>
+                            </div>
+
+                            <!-- Institution -->
+                            <div class="col-md-12">
+                                <label class="form-label fw-semibold required-field">Institution Name</label>
+                                <input type="text" class="form-control" name="institution"
+                                       value="{{ student.institution if editing else 'Kanhaiya Lal Polytechnic Roorkee' }}"
+                                       placeholder="Institution name" required>
+                            </div>
+                        </div>
+
+                        <div class="form-section-title">Result Summary <span class="text-muted small fw-normal">(Optional — can be filled after adding subjects)</span></div>
+
+                        <div class="row g-3 mb-4">
+                            <!-- SGPA -->
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">SGPA</label>
+                                <input type="number" class="form-control" name="sgpa" step="0.01" min="0" max="10"
+                                       value="{{ student.sgpa if editing and student.sgpa else '' }}"
+                                       placeholder="e.g. 7.85">
+                                <div class="form-text">Semester GPA (0.00 – 10.00)</div>
+                            </div>
+                            <!-- CGPA -->
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">CGPA</label>
+                                <input type="number" class="form-control" name="cgpa" step="0.01" min="0" max="10"
+                                       value="{{ student.cgpa if editing and student.cgpa else '' }}"
+                                       placeholder="e.g. 7.62">
+                                <div class="form-text">Cumulative GPA (0.00 – 10.00)</div>
+                            </div>
+                            <!-- Semester Result -->
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Semester Result</label>
+                                <select class="form-select" name="semester_result">
+                                    <option value="">-- Select Result --</option>
+                                    {% for res in ['PASS', 'FAIL', 'BACKLOG', 'WITHHELD'] %}
+                                    <option value="{{ res }}" {% if editing and student.semester_result == res %}selected{% endif %}>{{ res }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Buttons -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-circle me-2"></i>Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-lg px-5 fw-bold">
+                                {% if editing %}
+                                    <i class="bi bi-check-circle me-2"></i>Save Changes
+                                {% else %}
+                                    <i class="bi bi-arrow-right-circle me-2"></i>Save &amp; Add Subjects
+                                {% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

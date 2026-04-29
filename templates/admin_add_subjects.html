@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+{% block title %}Add Subjects — {{ student.name }} | Admin | KLP Roorkee{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-11">
+
+            <!-- Breadcrumb -->
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('admin.view_student', student_id=student.id) }}">{{ student.name }}</a></li>
+                    <li class="breadcrumb-item active">Add Subjects</li>
+                </ol>
+            </nav>
+
+            <!-- Student Info Banner -->
+            <div class="student-info-banner mb-4">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <div class="student-avatar">{{ student.name[0] }}</div>
+                    </div>
+                    <div class="col">
+                        <h5 class="mb-1 text-white fw-bold">{{ student.name }}</h5>
+                        <div class="text-white-75 small">
+                            <span class="me-3"><i class="bi bi-person-badge me-1"></i>Roll: <strong>{{ student.roll_number }}</strong></span>
+                            <span class="me-3"><i class="bi bi-building me-1"></i>{{ student.branch }}</span>
+                            <span><i class="bi bi-calendar me-1"></i>Semester {{ student.semester }} | {{ student.academic_year }}</span>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <span class="badge bg-warning text-dark fs-6 px-3 py-2">Sem {{ student.semester }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Form Card -->
+            <div class="admin-form-card">
+                <div class="admin-form-header">
+                    <h4 class="mb-0"><i class="bi bi-journal-plus me-2"></i>Add Subjects &amp; Marks</h4>
+                    <p class="text-white-75 small mb-0 mt-1">
+                        Add all theory and practical subjects. Use the buttons below to add more rows — there is no limit.
+                    </p>
+                </div>
+                <div class="admin-form-body">
+
+                    <!-- Existing subjects (read-only reference) -->
+                    {% if existing_subjects %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>{{ existing_subjects|length }} subject(s) already added.</strong>
+                        New subjects from this form will be <strong>appended</strong> to the existing ones.
+                        <a href="{{ url_for('admin.view_student', student_id=student.id) }}" class="alert-link ms-2">
+                            View existing subjects &rarr;
+                        </a>
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="{{ url_for('admin.add_subjects', student_id=student.id) }}">
+
+                        <!-- ── Theory Subjects ─────────────────────────── -->
+                        <div class="subject-section mb-4">
+                            <div class="subject-section-header theory-bg">
+                                <i class="bi bi-book me-2"></i>Theory Subjects
+                                <button type="button" class="btn btn-sm btn-light ms-3" onclick="addRow('theory')">
+                                    <i class="bi bi-plus-circle me-1"></i>Add Theory Subject
+                                </button>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table table-bordered mb-0" id="theoryTable">
+                                    <thead class="table-primary">
+                                        <tr>
+                                            <th width="5%">#</th>
+                                            <th width="12%">Subject Code</th>
+                                            <th width="30%">Subject Name *</th>
+                                            <th width="10%">Max Marks</th>
+                                            <th width="12%">Marks Obtained</th>
+                                            <th width="10%">Grade</th>
+                                            <th width="10%">Result</th>
+                                            <th width="6%" class="text-center">Del</th>
+                                            <!-- Hidden type field per row -->
+                                        </tr>
+                                    </thead>
+                                    <tbody id="theoryBody">
+                                        <!-- Default 5 theory rows -->
+                                        <tr class="subject-row">
+                                            <td class="row-num text-center text-muted">1</td>
+                                            <td><input type="text" class="form-control form-control-sm" name="subject_code" placeholder="e.g. ME-101"></td>
+                                            <td><input type="text" class="form-control form-control-sm" name="subject_name" placeholder="Mathematics - I"></td>
+                                            <td><input type="number" class="form-control form-control-sm" name="max_marks" value="100" min="0" max="1000"></td>
+                                            <td><input type="number" class="form-control form-control-sm" name="marks_obtained" value="" min="0" max="1000" placeholder="0"></td>
+                                            <td>
+                                                <select class="form-select form-select-sm" name="grade">
+                                                    <option value="">—</option>
+                                                    <option>O</option><option>A+</option><option>A</option>
+                                                    <option>B+</option><option>B</option><option>C</option>
+                                                    <option>D</option><option>F</option>
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <select class="form-select form-select-sm" name="result">
+                                                    <option value="">—</option>
+                                                    <option>PASS</option><option>FAIL</option>
+                                                </select>
+                                            </td>
+                                            <td class="text-center"><input type="hidden" name="subject_type" value="Theory"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRow(this)"><i class="bi bi-trash"></i></button></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="addRow('theory')">
+                                    <i class="bi bi-plus-circle me-1"></i>Add Another Theory Subject
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- ── Practical Subjects ──────────────────────── -->
+                        <div class="subject-section mb-4">
+                            <div class="subject-section-header practical-bg">
+                                <i class="bi bi-wrench-adjustable me-2"></i>Practical Subjects
+                                <button type="button" class="btn btn-sm btn-light ms-3" onclick="addRow('practical')">
+                                    <i class="bi bi-plus-circle me-1"></i>Add Practical Subject
+                                </button>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table table-bordered mb-0" id="practicalTable">
+                                    <thead class="table-success">
+                                        <tr>
+                                            <th width="5%">#</th>
+                                            <th width="12%">Subject Code</th>
+                                            <th width="30%">Subject Name *</th>
+                                            <th width="10%">Max Marks</th>
+                                            <th width="12%">Marks Obtained</th>
+                                            <th width="10%">Grade</th>
+                                            <th width="10%">Result</th>
+                                            <th width="6%" class="text-center">Del</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="practicalBody">
+                                        <tr class="subject-row">
+                                            <td class="row-num text-center text-muted">1</td>
+                                            <td><input type="text" class="form-control form-control-sm" name="subject_code" placeholder="e.g. ME-101P"></td>
+                                            <td><input type="text" class="form-control form-control-sm" name="subject_name" placeholder="Engineering Drawing Lab"></td>
+                                            <td><input type="number" class="form-control form-control-sm" name="max_marks" value="50" min="0" max="1000"></td>
+                                            <td><input type="number" class="form-control form-control-sm" name="marks_obtained" value="" min="0" max="1000" placeholder="0"></td>
+                                            <td>
+                                                <select class="form-select form-select-sm" name="grade">
+                                                    <option value="">—</option>
+                                                    <option>O</option><option>A+</option><option>A</option>
+                                                    <option>B+</option><option>B</option><option>C</option>
+                                                    <option>D</option><option>F</option>
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <select class="form-select form-select-sm" name="result">
+                                                    <option value="">—</option>
+                                                    <option>PASS</option><option>FAIL</option>
+                                                </select>
+                                            </td>
+                                            <td class="text-center"><input type="hidden" name="subject_type" value="Practical"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRow(this)"><i class="bi bi-trash"></i></button></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-outline-success btn-sm" onclick="addRow('practical')">
+                                    <i class="bi bi-plus-circle me-1"></i>Add Another Practical Subject
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Grade Legend -->
+                        <div class="alert alert-light border mb-4">
+                            <strong><i class="bi bi-info-circle me-1"></i>Grade Scale:</strong>
+                            O (Outstanding ≥90) | A+ (≥80) | A (≥70) | B+ (≥60) | B (≥50) | C (≥40) | D (≥33) | F (Fail &lt;33)
+                        </div>
+
+                        <!-- Submit -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('admin.view_student', student_id=student.id) }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left me-2"></i>Skip / Back
+                            </a>
+                            <button type="submit" class="btn btn-success btn-lg px-5 fw-bold">
+                                <i class="bi bi-check-circle me-2"></i>Save All Subjects
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* Dynamically add/remove subject rows */
+
+// Template HTML for a new theory row
+function makeRow(type, num) {
+    const gradeOpts = `<option value="">—</option><option>O</option><option>A+</option><option>A</option><option>B+</option><option>B</option><option>C</option><option>D</option><option>F</option>`;
+    const maxDefault = type === 'Theory' ? 100 : 50;
+    const codePlaceholder = type === 'Theory' ? 'e.g. ME-101' : 'e.g. ME-101P';
+    return `<tr class="subject-row">
+        <td class="row-num text-center text-muted">${num}</td>
+        <td><input type="text" class="form-control form-control-sm" name="subject_code" placeholder="${codePlaceholder}"></td>
+        <td><input type="text" class="form-control form-control-sm" name="subject_name" placeholder="Subject Name"></td>
+        <td><input type="number" class="form-control form-control-sm" name="max_marks" value="${maxDefault}" min="0" max="1000"></td>
+        <td><input type="number" class="form-control form-control-sm" name="marks_obtained" value="" min="0" max="1000" placeholder="0"></td>
+        <td><select class="form-select form-select-sm" name="grade">${gradeOpts}</select></td>
+        <td><select class="form-select form-select-sm" name="result"><option value="">—</option><option>PASS</option><option>FAIL</option></select></td>
+        <td class="text-center"><input type="hidden" name="subject_type" value="${type}"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRow(this)"><i class="bi bi-trash"></i></button></td>
+    </tr>`;
+}
+
+// Add a new row to the correct table
+function addRow(type) {
+    const tbody = document.getElementById(type === 'theory' ? 'theoryBody' : 'practicalBody');
+    const num = tbody.querySelectorAll('tr.subject-row').length + 1;
+    const typeCap = type === 'theory' ? 'Theory' : 'Practical';
+    tbody.insertAdjacentHTML('beforeend', makeRow(typeCap, num));
+    // Renumber
+    renumber(tbody);
+}
+
+// Remove a row and renumber
+function removeRow(btn) {
+    const row = btn.closest('tr');
+    const tbody = row.closest('tbody');
+    row.remove();
+    renumber(tbody);
+}
+
+// Renumber all rows in a tbody
+function renumber(tbody) {
+    tbody.querySelectorAll('tr.subject-row').forEach((row, i) => {
+        const numCell = row.querySelector('.row-num');
+        if (numCell) numCell.textContent = i + 1;
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Admin Login — KLP Roorkee{% endblock %}
+
+{% block content %}
+<div class="admin-login-page min-vh-100 d-flex align-items-center justify-content-center py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-5 col-md-7 col-sm-10">
+
+                <div class="admin-login-card">
+                    <!-- Card Header -->
+                    <div class="admin-login-header text-center">
+                        <div class="admin-shield-icon">
+                            <i class="bi bi-shield-lock-fill"></i>
+                        </div>
+                        <h3 class="fw-bold text-white mt-3 mb-0">Admin Panel</h3>
+                        <p class="text-white-75 small mt-1">KLP Roorkee — Restricted Access</p>
+                    </div>
+
+                    <!-- Card Body -->
+                    <div class="admin-login-body">
+                        <p class="text-center text-muted mb-4">
+                            Enter your Admin ID and Password to access the student data management panel.
+                        </p>
+
+                        <form method="POST" action="{{ url_for('admin.login') }}">
+                            <!-- Admin ID -->
+                            <div class="mb-3">
+                                <label for="admin_id" class="form-label fw-semibold">Admin ID</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
+                                    <input
+                                        type="text"
+                                        class="form-control"
+                                        id="admin_id"
+                                        name="admin_id"
+                                        placeholder="Enter Admin ID"
+                                        required
+                                        autofocus
+                                    >
+                                </div>
+                            </div>
+
+                            <!-- Password -->
+                            <div class="mb-4">
+                                <label for="password" class="form-label fw-semibold">Password</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
+                                    <input
+                                        type="password"
+                                        class="form-control"
+                                        id="password"
+                                        name="password"
+                                        placeholder="Enter Password"
+                                        required
+                                    >
+                                    <button class="btn btn-outline-secondary" type="button" id="togglePassword" title="Show/Hide Password">
+                                        <i class="bi bi-eye" id="eyeIcon"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg fw-bold">
+                                    <i class="bi bi-box-arrow-in-right me-2"></i>Login to Admin Panel
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Security Notice -->
+                        <div class="admin-security-notice mt-4">
+                            <i class="bi bi-info-circle-fill text-warning me-2"></i>
+                            <small class="text-muted">This is a restricted area. Unauthorized access is prohibited. All login attempts are monitored.</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Back link -->
+                <div class="text-center mt-4">
+                    <a href="{{ url_for('main.home') }}" class="text-muted small">
+                        <i class="bi bi-arrow-left me-1"></i>Return to KLP Website
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Toggle password visibility
+    document.getElementById('togglePassword').addEventListener('click', function() {
+        const pwd = document.getElementById('password');
+        const icon = document.getElementById('eyeIcon');
+        if (pwd.type === 'password') {
+            pwd.type = 'text';
+            icon.className = 'bi bi-eye-slash';
+        } else {
+            pwd.type = 'password';
+            icon.className = 'bi bi-eye';
+        }
+    });
+</script>
+{% endblock %}

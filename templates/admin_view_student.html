@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}{{ student.name }} — Admin | KLP Roorkee{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+    <!-- Header Actions -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                    <li class="breadcrumb-item active">{{ student.name }}</li>
+                </ol>
+            </nav>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('admin.add_subjects', student_id=student.id) }}" class="btn btn-success">
+                <i class="bi bi-plus-circle me-2"></i>Add Subjects
+            </a>
+            <a href="{{ url_for('admin.edit_student', student_id=student.id) }}" class="btn btn-warning">
+                <i class="bi bi-pencil me-2"></i>Edit
+            </a>
+            <a href="{{ url_for('result.show_result', student_id=student.id) }}" target="_blank" class="btn btn-primary">
+                <i class="bi bi-award me-2"></i>View Result
+            </a>
+            <a href="{{ url_for('result.download_pdf', student_id=student.id) }}" class="btn btn-danger">
+                <i class="bi bi-file-earmark-pdf me-2"></i>Download PDF
+            </a>
+            <form method="POST" action="{{ url_for('admin.delete_student', student_id=student.id) }}"
+                  onsubmit="return confirm('Permanently delete {{ student.name }}? This cannot be undone.');">
+                <button type="submit" class="btn btn-outline-danger">
+                    <i class="bi bi-trash me-2"></i>Delete
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Student Info Card -->
+    <div class="admin-form-card mb-4">
+        <div class="admin-form-header">
+            <div class="d-flex align-items-center gap-3">
+                <div class="student-avatar">{{ student.name[0] }}</div>
+                <div>
+                    <h4 class="mb-0 text-white fw-bold">{{ student.name }}</h4>
+                    <div class="text-white-75 small">Roll: {{ student.roll_number }} | Enr: {{ student.enrollment_no }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="admin-form-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <div class="info-pair">
+                        <div class="info-pair-label">Father's Name</div>
+                        <div class="info-pair-value">{{ student.father_name }}</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="info-pair">
+                        <div class="info-pair-label">Branch</div>
+                        <div class="info-pair-value">{{ student.branch }}</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="info-pair">
+                        <div class="info-pair-label">Semester</div>
+                        <div class="info-pair-value">Semester {{ student.semester }}</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="info-pair">
+                        <div class="info-pair-label">Category</div>
+                        <div class="info-pair-value">{{ student.category }}</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="info-pair">
+                        <div class="info-pair-label">Academic Year</div>
+                        <div class="info-pair-value">{{ student.academic_year }}</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="info-pair">
+                        <div class="info-pair-label">SGPA</div>
+                        <div class="info-pair-value fw-bold text-primary">{{ student.sgpa or 'N/A' }}</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="info-pair">
+                        <div class="info-pair-label">CGPA</div>
+                        <div class="info-pair-value fw-bold text-primary">{{ student.cgpa or 'N/A' }}</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="info-pair">
+                        <div class="info-pair-label">Semester Result</div>
+                        <div class="info-pair-value">
+                            {% if student.semester_result == 'PASS' %}
+                                <span class="badge bg-success fs-6">PASS</span>
+                            {% elif student.semester_result == 'FAIL' %}
+                                <span class="badge bg-danger fs-6">FAIL</span>
+                            {% else %}
+                                <span class="badge bg-secondary fs-6">{{ student.semester_result or 'N/A' }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <div class="info-pair">
+                        <div class="info-pair-label">Institution</div>
+                        <div class="info-pair-value">{{ student.institution }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Theory Subjects -->
+    {% if theory_subjects %}
+    <div class="admin-table-card mb-4">
+        <div class="admin-table-header" style="background: #1a237e;">
+            <h5 class="fw-bold mb-0 text-white"><i class="bi bi-book me-2"></i>Theory Subjects ({{ theory_subjects|length }})</h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-bordered mb-0">
+                <thead class="table-primary">
+                    <tr>
+                        <th>#</th><th>Code</th><th>Subject Name</th><th>Max</th><th>Obtained</th><th>Grade</th><th>Result</th><th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in theory_subjects %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td><code>{{ s.subject_code }}</code></td>
+                        <td>{{ s.subject_name }}</td>
+                        <td class="text-center">{{ s.max_marks }}</td>
+                        <td class="text-center fw-bold">{{ s.marks_obtained }}</td>
+                        <td class="text-center">{{ s.grade or '—' }}</td>
+                        <td class="text-center">
+                            <span class="badge {{ 'bg-success' if s.result == 'PASS' else 'bg-danger' if s.result == 'FAIL' else 'bg-secondary' }}">{{ s.result or '—' }}</span>
+                        </td>
+                        <td>
+                            <form method="POST" action="{{ url_for('admin.delete_subject', subject_id=s.id) }}"
+                                  onsubmit="return confirm('Delete subject {{ s.subject_name }}?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-secondary fw-bold">
+                    <tr>
+                        <td colspan="3" class="text-end">Theory Total:</td>
+                        <td class="text-center">{{ theory_subjects | sum(attribute='max_marks') }}</td>
+                        <td class="text-center">{{ theory_subjects | sum(attribute='marks_obtained') }}</td>
+                        <td colspan="3"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Practical Subjects -->
+    {% if practical_subjects %}
+    <div class="admin-table-card mb-4">
+        <div class="admin-table-header" style="background: #1b5e20;">
+            <h5 class="fw-bold mb-0 text-white"><i class="bi bi-wrench-adjustable me-2"></i>Practical Subjects ({{ practical_subjects|length }})</h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-bordered mb-0">
+                <thead class="table-success">
+                    <tr>
+                        <th>#</th><th>Code</th><th>Subject Name</th><th>Max</th><th>Obtained</th><th>Grade</th><th>Result</th><th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in practical_subjects %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td><code>{{ s.subject_code }}</code></td>
+                        <td>{{ s.subject_name }}</td>
+                        <td class="text-center">{{ s.max_marks }}</td>
+                        <td class="text-center fw-bold">{{ s.marks_obtained }}</td>
+                        <td class="text-center">{{ s.grade or '—' }}</td>
+                        <td class="text-center">
+                            <span class="badge {{ 'bg-success' if s.result == 'PASS' else 'bg-danger' if s.result == 'FAIL' else 'bg-secondary' }}">{{ s.result or '—' }}</span>
+                        </td>
+                        <td>
+                            <form method="POST" action="{{ url_for('admin.delete_subject', subject_id=s.id) }}"
+                                  onsubmit="return confirm('Delete subject {{ s.subject_name }}?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-secondary fw-bold">
+                    <tr>
+                        <td colspan="3" class="text-end">Practical Total:</td>
+                        <td class="text-center">{{ practical_subjects | sum(attribute='max_marks') }}</td>
+                        <td class="text-center">{{ practical_subjects | sum(attribute='marks_obtained') }}</td>
+                        <td colspan="3"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not theory_subjects and not practical_subjects %}
+    <div class="text-center py-5">
+        <i class="bi bi-journal-x fs-1 text-muted d-block mb-2"></i>
+        <p class="text-muted">No subjects added yet.</p>
+        <a href="{{ url_for('admin.add_subjects', student_id=student.id) }}" class="btn btn-success">
+            <i class="bi bi-plus-circle me-2"></i>Add Subjects Now
+        </a>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

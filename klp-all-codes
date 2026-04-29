@@ -1,0 +1,3826 @@
+================================================================================
+  KANHAIYA LAL POLYTECHNIC ROORKEE (KLP) — COMPLETE WEBSITE SOURCE CODE
+================================================================================
+
+PROJECT OVERVIEW:
+--------------------------------------------------------------------------------
+  - Tech Stack:  Python 3.11 + Flask + SQLAlchemy + SQLite + ReportLab
+  - Frontend:    Bootstrap 5 + Bootstrap Icons + Poppins/Merriweather fonts
+  - Run Command: cd klp-website && python app.py
+  - Port:        5000
+  - Database:    SQLite (auto-created at klp_database.db)
+
+ADMIN CREDENTIALS:
+--------------------------------------------------------------------------------
+  - URL:       /admin/login
+  - ID:        KLP ROORKEE
+  - Password:  Ubter@12345
+
+REQUIRED PYTHON PACKAGES (install via pip):
+--------------------------------------------------------------------------------
+  pip install flask flask-sqlalchemy reportlab
+
+FOLDER STRUCTURE:
+--------------------------------------------------------------------------------
+  klp-website/
+  ├── app.py                  (entry point)
+  ├── extensions.py           (db instance)
+  ├── models.py               (database tables)
+  ├── routes/                 (URL handlers)
+  │   ├── __init__.py
+  │   ├── main.py             (homepage)
+  │   ├── admin.py            (admin panel)
+  │   └── result.py           (student results + PDF)
+  ├── templates/              (HTML pages)
+  │   ├── base.html
+  │   ├── home.html
+  │   ├── result_search.html
+  │   ├── result_display.html
+  │   ├── admin_login.html
+  │   ├── admin_dashboard.html
+  │   ├── admin_add_student.html
+  │   ├── admin_add_subjects.html
+  │   └── admin_view_student.html
+  └── static/
+      ├── css/style.css
+      ├── js/main.js
+      └── images/
+          ├── founder.png      (Shri Kanhaiya Lal Ji photo)
+          └── logo.png         (College shield logo)
+
+HOW TO USE THIS FILE:
+--------------------------------------------------------------------------------
+  1. Create the folder structure shown above
+  2. Copy each section below into its corresponding file
+  3. Add your founder.png and logo.png images into static/images/
+  4. Install dependencies: pip install flask flask-sqlalchemy reportlab
+  5. Run: cd klp-website && python app.py
+  6. Open http://localhost:5000 in your browser
+
+
+
+################################################################################
+#  FILE 1 of 18: app.py
+#  TYPE: PYTHON
+#  PURPOSE: Main Flask app — starts the server, connects database
+################################################################################
+
+"""
+KLP (Kanhaiya Lal Polytechnic) Roorkee - Student Result Website
+Main Flask application entry point.
+"""
+
+import os
+from flask import Flask
+from extensions import db
+from routes.main import main_bp
+from routes.admin import admin_bp
+from routes.result import result_bp
+
+# ─── App Factory ─────────────────────────────────────────────────────────────
+
+def create_app():
+    """Create and configure the Flask application."""
+    app = Flask(__name__)
+
+    # Secret key for session management (from environment or fallback)
+    app.config['SECRET_KEY'] = os.environ.get('SESSION_SECRET', 'klp-roorkee-secret-2024')
+
+    # SQLite database stored in the project directory
+    basedir = os.path.abspath(os.path.dirname(__file__))
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'klp_database.db')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Suppress deprecation warning
+
+    # Initialize database with app
+    db.init_app(app)
+
+    # Register route blueprints
+    app.register_blueprint(main_bp)       # Public pages (home, about, departments, etc.)
+    app.register_blueprint(admin_bp)      # Admin panel for uploading data
+    app.register_blueprint(result_bp)     # Student result lookup
+
+    # Create all database tables on startup
+    with app.app_context():
+        db.create_all()
+
+    return app
+
+
+# ─── Entry Point ─────────────────────────────────────────────────────────────
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app = create_app()
+    app.run(host='0.0.0.0', port=port, debug=False)
+
+================================================================================  END OF: app.py  =====
+
+
+################################################################################
+#  FILE 2 of 18: extensions.py
+#  TYPE: PYTHON
+#  PURPOSE: Shared SQLAlchemy database instance
+################################################################################
+
+"""
+Shared Flask extensions — initialized here, imported everywhere.
+This prevents circular imports by defining db outside of app.py.
+"""
+
+from flask_sqlalchemy import SQLAlchemy
+
+# SQLAlchemy instance (bound to app later via db.init_app(app))
+db = SQLAlchemy()
+
+================================================================================  END OF: extensions.py  =====
+
+
+################################################################################
+#  FILE 3 of 18: models.py
+#  TYPE: PYTHON
+#  PURPOSE: Database tables: Student & Subject
+################################################################################
+
+"""
+Database models for the KLP Student Result System.
+Defines Student and Subject tables using SQLAlchemy ORM.
+"""
+
+from extensions import db
+from datetime import datetime
+
+
+# ─── Student Model ────────────────────────────────────────────────────────────
+
+class Student(db.Model):
+    """
+    Stores personal and academic details for each student.
+    One student can have multiple subjects (one-to-many relationship).
+    """
+    __tablename__ = 'students'
+
+    id              = db.Column(db.Integer, primary_key=True)
+    name            = db.Column(db.String(150), nullable=False)            # Student full name
+    roll_number     = db.Column(db.String(50), unique=True, nullable=False) # Exam roll number
+    enrollment_no   = db.Column(db.String(50), unique=True, nullable=False) # College enrollment number
+    father_name     = db.Column(db.String(150), nullable=False)            # Father's full name
+    category        = db.Column(db.String(20), nullable=False)             # GEN / OBC / SC / ST / EWS
+    branch          = db.Column(db.String(100), nullable=False)            # Department/Branch name
+    institution     = db.Column(db.String(200), nullable=False)            # Institution name
+    semester        = db.Column(db.Integer, nullable=False)                # Current semester (1-6)
+    academic_year   = db.Column(db.String(20), nullable=False)             # e.g. "2023-2024"
+    sgpa            = db.Column(db.Float, nullable=True)                   # Semester Grade Point Average
+    cgpa            = db.Column(db.Float, nullable=True)                   # Cumulative Grade Point Average
+    semester_result = db.Column(db.String(20), nullable=True)             # PASS / FAIL / BACKLOG
+    created_at      = db.Column(db.DateTime, default=datetime.utcnow)     # Record creation timestamp
+
+    # Relationship: one student → many subjects
+    subjects = db.relationship('Subject', backref='student', lazy=True, cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f'<Student {self.name} | Roll: {self.roll_number}>'
+
+
+# ─── Subject Model ────────────────────────────────────────────────────────────
+
+class Subject(db.Model):
+    """
+    Stores individual subject marks for a student.
+    Each row is one subject (theory or practical) linked to a student.
+    """
+    __tablename__ = 'subjects'
+
+    id              = db.Column(db.Integer, primary_key=True)
+    student_id      = db.Column(db.Integer, db.ForeignKey('students.id'), nullable=False)  # Link to student
+
+    subject_code    = db.Column(db.String(20), nullable=False)    # Subject code (e.g. ME-101)
+    subject_name    = db.Column(db.String(200), nullable=False)   # Full subject name
+    subject_type    = db.Column(db.String(20), nullable=False)    # "Theory" or "Practical"
+    max_marks       = db.Column(db.Integer, nullable=False)        # Maximum marks for the subject
+    marks_obtained  = db.Column(db.Integer, nullable=False)        # Marks scored by student
+    grade           = db.Column(db.String(5), nullable=True)       # Letter grade (A, B+, etc.)
+    result          = db.Column(db.String(10), nullable=True)      # PASS / FAIL for this subject
+
+    def __repr__(self):
+        return f'<Subject {self.subject_name} | Marks: {self.marks_obtained}/{self.max_marks}>'
+
+================================================================================  END OF: models.py  =====
+
+
+################################################################################
+#  FILE 4 of 18: routes/__init__.py
+#  TYPE: PYTHON
+#  PURPOSE: Marks routes/ as a Python package
+################################################################################
+
+# Routes package — makes routes/ a Python package
+
+================================================================================  END OF: routes/__init__.py  =====
+
+
+################################################################################
+#  FILE 5 of 18: routes/main.py
+#  TYPE: PYTHON
+#  PURPOSE: Public homepage route + departments/sports/partners data
+################################################################################
+
+"""
+Main public-facing routes for the KLP Roorkee website.
+Handles: Home page, About, Departments, Sports, Courses, and Contact.
+"""
+
+from flask import Blueprint, render_template
+
+# Blueprint for all public pages
+main_bp = Blueprint('main', __name__)
+
+
+# ─── Home Page ────────────────────────────────────────────────────────────────
+
+@main_bp.route('/')
+def home():
+    """Render the main landing page with college info, departments, hiring partners, etc."""
+
+    # Hiring partner companies (displayed in a slider on the homepage)
+    hiring_partners = [
+        {"name": "TATA Group", "sector": "Manufacturing & Engineering"},
+        {"name": "Maruti Suzuki", "sector": "Automobile"},
+        {"name": "HCL Technologies", "sector": "Information Technology"},
+        {"name": "Hero MotoCorp", "sector": "Automobile"},
+        {"name": "Saraswati Dynamic Ltd.", "sector": "Engineering"},
+        {"name": "Simple Infrastructure", "sector": "Construction"},
+        {"name": "Lloyd Insulation Ltd.", "sector": "Insulation & Construction"},
+        {"name": "Bajaj Auto", "sector": "Automobile"},
+        {"name": "Kirby Building Systems", "sector": "Steel Buildings"},
+        {"name": "ABB Ltd.", "sector": "Electrical & Automation"},
+        {"name": "Kenwood", "sector": "Electronics"},
+        {"name": "VIP Luggage Ltd.", "sector": "Manufacturing"},
+        {"name": "TVS Ltd.", "sector": "Automobile"},
+    ]
+
+    # Department list with descriptions
+    departments = [
+        {
+            "name": "Civil Engineering",
+            "code": "CE",
+            "icon": "🏗️",
+            "desc": "Construction, structural design, and infrastructure development.",
+            "seats": 60
+        },
+        {
+            "name": "Mechanical Engineering",
+            "code": "ME",
+            "icon": "⚙️",
+            "desc": "Machines, thermodynamics, manufacturing, and industrial processes.",
+            "seats": 60
+        },
+        {
+            "name": "Electrical Engineering",
+            "code": "EE",
+            "icon": "⚡",
+            "desc": "Power systems, circuits, motors, and electrical installation.",
+            "seats": 60
+        },
+        {
+            "name": "Electronics Engineering",
+            "code": "EN",
+            "icon": "📡",
+            "desc": "Electronic circuits, communication systems, and embedded tech.",
+            "seats": 60
+        },
+        {
+            "name": "AI & Machine Learning",
+            "code": "AIML",
+            "icon": "🤖",
+            "desc": "Artificial intelligence, data science, and machine learning applications.",
+            "seats": 60
+        },
+        {
+            "name": "Computer Communication & Networking",
+            "code": "CCN",
+            "icon": "🌐",
+            "desc": "Networking protocols, cybersecurity, and IT infrastructure.",
+            "seats": 60
+        },
+    ]
+
+    # Sports events / activities at KLP
+    sports_events = [
+        {
+            "name": "Annual Sports Day",
+            "type": "Annual Event",
+            "icon": "🏆",
+            "desc": "Grand annual sports celebration with athletics, team games, and individual events. Held every year with prize distribution ceremony and cultural performances.",
+            "highlights": ["Athletics (100m, 200m, 400m)", "Volleyball", "Basketball", "Cricket", "Tug of War", "Badminton"]
+        },
+        {
+            "name": "Zonal Sports Competition",
+            "type": "Inter-College",
+            "icon": "🥇",
+            "desc": "Inter-college zonal competition organized by UBTER. KLP students participate and represent the college at regional level in multiple sports disciplines.",
+            "highlights": ["Inter-College Football", "Kabaddi", "Table Tennis", "Chess", "Athletics", "Hockey"]
+        },
+    ]
+
+    return render_template(
+        'home.html',
+        departments=departments,
+        hiring_partners=hiring_partners,
+        sports_events=sports_events
+    )
+
+
+# ─── About Page (optional extra route) ───────────────────────────────────────
+
+@main_bp.route('/about')
+def about():
+    """Render the about/college details page."""
+    return render_template('home.html')  # Scroll to about section on homepage
+
+================================================================================  END OF: routes/main.py  =====
+
+
+################################################################################
+#  FILE 6 of 18: routes/admin.py
+#  TYPE: PYTHON
+#  PURPOSE: Admin login, add/edit/delete students & subjects
+################################################################################
+
+"""
+Admin panel routes for KLP Roorkee.
+Protected by a simple ID/Password login.
+Admins can add students, add subjects, and view/delete records.
+
+Access credentials:
+  ID       : KLP ROORKEE
+  Password : Ubter@12345
+"""
+
+from flask import (
+    Blueprint, render_template, request,
+    redirect, url_for, flash, session
+)
+from models import Student, Subject
+from extensions import db
+
+# Blueprint for admin routes — all URLs start with /admin
+admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+
+# ─── Hardcoded Admin Credentials ──────────────────────────────────────────────
+ADMIN_ID       = "KLP ROORKEE"
+ADMIN_PASSWORD = "Ubter@12345"
+
+
+# ─── Login Required Decorator ─────────────────────────────────────────────────
+
+def admin_required(f):
+    """
+    Decorator to protect admin routes.
+    Redirects to login page if the admin is not logged in.
+    """
+    from functools import wraps
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('admin_logged_in'):
+            flash('Please log in to access the admin panel.', 'warning')
+            return redirect(url_for('admin.login'))
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ─── Admin Login ──────────────────────────────────────────────────────────────
+
+@admin_bp.route('/login', methods=['GET', 'POST'])
+def login():
+    """
+    GET  → Show the admin login form.
+    POST → Validate credentials and log in.
+    """
+    # If already logged in, go to dashboard
+    if session.get('admin_logged_in'):
+        return redirect(url_for('admin.dashboard'))
+
+    if request.method == 'POST':
+        admin_id  = request.form.get('admin_id', '').strip()
+        password  = request.form.get('password', '').strip()
+
+        # Validate credentials (case-sensitive)
+        if admin_id == ADMIN_ID and password == ADMIN_PASSWORD:
+            session['admin_logged_in'] = True
+            flash('Welcome! You are now logged in as Admin.', 'success')
+            return redirect(url_for('admin.dashboard'))
+        else:
+            flash('Invalid ID or Password. Please try again.', 'danger')
+
+    return render_template('admin_login.html')
+
+
+# ─── Admin Logout ─────────────────────────────────────────────────────────────
+
+@admin_bp.route('/logout')
+def logout():
+    """Clear the admin session and redirect to login."""
+    session.pop('admin_logged_in', None)
+    flash('You have been logged out.', 'info')
+    return redirect(url_for('admin.login'))
+
+
+# ─── Admin Dashboard ──────────────────────────────────────────────────────────
+
+@admin_bp.route('/dashboard')
+@admin_required
+def dashboard():
+    """
+    Main admin dashboard.
+    Shows a summary of all students in the database.
+    """
+    students = Student.query.order_by(Student.created_at.desc()).all()
+    total_students = len(students)
+    return render_template('admin_dashboard.html', students=students, total_students=total_students)
+
+
+# ─── Add New Student ──────────────────────────────────────────────────────────
+
+@admin_bp.route('/add-student', methods=['GET', 'POST'])
+@admin_required
+def add_student():
+    """
+    GET  → Show the add-student form.
+    POST → Validate and save the new student to the database.
+    """
+    if request.method == 'POST':
+        name          = request.form.get('name', '').strip()
+        roll_number   = request.form.get('roll_number', '').strip()
+        enrollment_no = request.form.get('enrollment_no', '').strip()
+        father_name   = request.form.get('father_name', '').strip()
+        category      = request.form.get('category', '').strip()
+        branch        = request.form.get('branch', '').strip()
+        institution   = request.form.get('institution', '').strip()
+        semester      = request.form.get('semester', '').strip()
+        academic_year = request.form.get('academic_year', '').strip()
+        sgpa          = request.form.get('sgpa', '').strip()
+        cgpa          = request.form.get('cgpa', '').strip()
+        semester_result = request.form.get('semester_result', '').strip()
+
+        # Basic validation
+        errors = []
+        if not all([name, roll_number, enrollment_no, father_name, category, branch, institution, semester, academic_year]):
+            errors.append('All required fields must be filled.')
+        if Student.query.filter_by(roll_number=roll_number).first():
+            errors.append(f'Roll Number {roll_number} already exists.')
+        if Student.query.filter_by(enrollment_no=enrollment_no).first():
+            errors.append(f'Enrollment Number {enrollment_no} already exists.')
+
+        if errors:
+            for e in errors:
+                flash(e, 'danger')
+            return render_template('admin_add_student.html')
+
+        # Create and save new student record
+        student = Student(
+            name=name,
+            roll_number=roll_number,
+            enrollment_no=enrollment_no,
+            father_name=father_name,
+            category=category,
+            branch=branch,
+            institution=institution,
+            semester=int(semester),
+            academic_year=academic_year,
+            sgpa=float(sgpa) if sgpa else None,
+            cgpa=float(cgpa) if cgpa else None,
+            semester_result=semester_result or None
+        )
+        db.session.add(student)
+        db.session.commit()
+
+        flash(f'Student "{name}" added successfully! Now add their subjects.', 'success')
+        return redirect(url_for('admin.add_subjects', student_id=student.id))
+
+    return render_template('admin_add_student.html')
+
+
+# ─── Add Subjects for a Student ───────────────────────────────────────────────
+
+@admin_bp.route('/add-subjects/<int:student_id>', methods=['GET', 'POST'])
+@admin_required
+def add_subjects(student_id):
+    """
+    GET  → Show the add-subjects form for a student.
+    POST → Save all submitted subjects (theory + practical, no limit).
+    """
+    student = Student.query.get_or_404(student_id)
+
+    if request.method == 'POST':
+        # Collect all subject entries submitted via the dynamic form
+        # The form uses indexed field names: subject_code_0, subject_name_0, etc.
+        subject_codes    = request.form.getlist('subject_code')
+        subject_names    = request.form.getlist('subject_name')
+        subject_types    = request.form.getlist('subject_type')
+        max_marks_list   = request.form.getlist('max_marks')
+        marks_obtained_list = request.form.getlist('marks_obtained')
+        grades           = request.form.getlist('grade')
+        results          = request.form.getlist('result')
+
+        # Add each subject row to the database
+        subjects_added = 0
+        for i in range(len(subject_codes)):
+            code = subject_codes[i].strip()
+            name = subject_names[i].strip()
+            if not code or not name:
+                continue  # Skip empty rows
+
+            subj = Subject(
+                student_id=student.id,
+                subject_code=code,
+                subject_name=name,
+                subject_type=subject_types[i] if i < len(subject_types) else 'Theory',
+                max_marks=int(max_marks_list[i]) if i < len(max_marks_list) and max_marks_list[i] else 0,
+                marks_obtained=int(marks_obtained_list[i]) if i < len(marks_obtained_list) and marks_obtained_list[i] else 0,
+                grade=grades[i].strip() if i < len(grades) else None,
+                result=results[i].strip() if i < len(results) else None,
+            )
+            db.session.add(subj)
+            subjects_added += 1
+
+        db.session.commit()
+        flash(f'{subjects_added} subject(s) added for {student.name}.', 'success')
+        return redirect(url_for('admin.view_student', student_id=student.id))
+
+    # GET — show the form with existing subjects (for reference)
+    existing_subjects = student.subjects
+    return render_template('admin_add_subjects.html', student=student, existing_subjects=existing_subjects)
+
+
+# ─── View Student Detail ──────────────────────────────────────────────────────
+
+@admin_bp.route('/student/<int:student_id>')
+@admin_required
+def view_student(student_id):
+    """Show full details of a student, including all their subjects."""
+    student = Student.query.get_or_404(student_id)
+    theory_subjects    = [s for s in student.subjects if s.subject_type == 'Theory']
+    practical_subjects = [s for s in student.subjects if s.subject_type == 'Practical']
+    return render_template(
+        'admin_view_student.html',
+        student=student,
+        theory_subjects=theory_subjects,
+        practical_subjects=practical_subjects
+    )
+
+
+# ─── Edit Student ─────────────────────────────────────────────────────────────
+
+@admin_bp.route('/edit-student/<int:student_id>', methods=['GET', 'POST'])
+@admin_required
+def edit_student(student_id):
+    """Edit a student's personal and academic details."""
+    student = Student.query.get_or_404(student_id)
+
+    if request.method == 'POST':
+        student.name          = request.form.get('name', student.name).strip()
+        student.roll_number   = request.form.get('roll_number', student.roll_number).strip()
+        student.enrollment_no = request.form.get('enrollment_no', student.enrollment_no).strip()
+        student.father_name   = request.form.get('father_name', student.father_name).strip()
+        student.category      = request.form.get('category', student.category).strip()
+        student.branch        = request.form.get('branch', student.branch).strip()
+        student.institution   = request.form.get('institution', student.institution).strip()
+        student.semester      = int(request.form.get('semester', student.semester))
+        student.academic_year = request.form.get('academic_year', student.academic_year).strip()
+        sgpa = request.form.get('sgpa', '').strip()
+        cgpa = request.form.get('cgpa', '').strip()
+        student.sgpa          = float(sgpa) if sgpa else None
+        student.cgpa          = float(cgpa) if cgpa else None
+        student.semester_result = request.form.get('semester_result', student.semester_result).strip()
+        db.session.commit()
+        flash('Student details updated successfully!', 'success')
+        return redirect(url_for('admin.view_student', student_id=student.id))
+
+    return render_template('admin_add_student.html', student=student, editing=True)
+
+
+# ─── Delete Student ───────────────────────────────────────────────────────────
+
+@admin_bp.route('/delete-student/<int:student_id>', methods=['POST'])
+@admin_required
+def delete_student(student_id):
+    """Delete a student and all their subjects (cascade delete)."""
+    student = Student.query.get_or_404(student_id)
+    name = student.name
+    db.session.delete(student)
+    db.session.commit()
+    flash(f'Student "{name}" and all related data deleted.', 'warning')
+    return redirect(url_for('admin.dashboard'))
+
+
+# ─── Delete Single Subject ────────────────────────────────────────────────────
+
+@admin_bp.route('/delete-subject/<int:subject_id>', methods=['POST'])
+@admin_required
+def delete_subject(subject_id):
+    """Delete a single subject from a student's record."""
+    subject = Subject.query.get_or_404(subject_id)
+    student_id = subject.student_id
+    db.session.delete(subject)
+    db.session.commit()
+    flash(f'Subject "{subject.subject_name}" deleted.', 'warning')
+    return redirect(url_for('admin.view_student', student_id=student_id))
+
+================================================================================  END OF: routes/admin.py  =====
+
+
+################################################################################
+#  FILE 7 of 18: routes/result.py
+#  TYPE: PYTHON
+#  PURPOSE: Student result search + ReportLab PDF generation
+################################################################################
+
+"""
+Student Result routes.
+Students can look up their result by entering a roll number or enrollment number.
+Results display all subject marks, SGPA, CGPA, and can be downloaded as PDF.
+"""
+
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file
+from models import Student, Subject
+import io
+
+# Blueprint for result-related pages
+result_bp = Blueprint('result', __name__, url_prefix='/result')
+
+
+# ─── Result Lookup Page ───────────────────────────────────────────────────────
+
+@result_bp.route('/', methods=['GET', 'POST'])
+def result_home():
+    """
+    GET  → Show the roll number input form.
+    POST → Look up the student and redirect to result display.
+    """
+    if request.method == 'POST':
+        query = request.form.get('roll_number', '').strip()
+
+        if not query:
+            flash('Please enter your Roll Number or Enrollment Number.', 'warning')
+            return redirect(url_for('result.result_home'))
+
+        # Search by roll number OR enrollment number (case-insensitive)
+        student = Student.query.filter(
+            (Student.roll_number.ilike(query)) |
+            (Student.enrollment_no.ilike(query))
+        ).first()
+
+        if student:
+            # Redirect to the individual result page
+            return redirect(url_for('result.show_result', student_id=student.id))
+        else:
+            flash(f'No result found for: {query}. Please check your Roll Number / Enrollment Number.', 'danger')
+            return redirect(url_for('result.result_home'))
+
+    # GET request — show the search form
+    return render_template('result_search.html')
+
+
+# ─── Display Individual Result ────────────────────────────────────────────────
+
+@result_bp.route('/show/<int:student_id>')
+def show_result(student_id):
+    """
+    Display the full marksheet for a student.
+    Shows theory subjects, practical subjects, SGPA, CGPA, and semester result.
+    """
+    student = Student.query.get_or_404(student_id)
+
+    # Separate theory and practical subjects for display
+    theory_subjects    = [s for s in student.subjects if s.subject_type == 'Theory']
+    practical_subjects = [s for s in student.subjects if s.subject_type == 'Practical']
+
+    # Calculate totals
+    theory_total_max      = sum(s.max_marks     for s in theory_subjects)
+    theory_total_obtained = sum(s.marks_obtained for s in theory_subjects)
+    practical_total_max      = sum(s.max_marks     for s in practical_subjects)
+    practical_total_obtained = sum(s.marks_obtained for s in practical_subjects)
+    grand_total_max      = theory_total_max      + practical_total_max
+    grand_total_obtained = theory_total_obtained + practical_total_obtained
+
+    return render_template(
+        'result_display.html',
+        student=student,
+        theory_subjects=theory_subjects,
+        practical_subjects=practical_subjects,
+        theory_total_max=theory_total_max,
+        theory_total_obtained=theory_total_obtained,
+        practical_total_max=practical_total_max,
+        practical_total_obtained=practical_total_obtained,
+        grand_total_max=grand_total_max,
+        grand_total_obtained=grand_total_obtained
+    )
+
+
+# ─── Download PDF Marksheet ───────────────────────────────────────────────────
+
+@result_bp.route('/download/<int:student_id>')
+def download_pdf(student_id):
+    """
+    Generate and download a PDF marksheet for the student.
+    Uses ReportLab to create a formatted PDF in memory and serve it.
+    """
+    student = Student.query.get_or_404(student_id)
+
+    theory_subjects    = [s for s in student.subjects if s.subject_type == 'Theory']
+    practical_subjects = [s for s in student.subjects if s.subject_type == 'Practical']
+
+    # Build the PDF in memory using ReportLab
+    pdf_buffer = generate_marksheet_pdf(student, theory_subjects, practical_subjects)
+
+    # Serve the PDF as a file download
+    filename = f"Marksheet_{student.roll_number}_{student.name.replace(' ', '_')}.pdf"
+    return send_file(
+        pdf_buffer,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=filename
+    )
+
+
+# ─── PDF Generation Helper ────────────────────────────────────────────────────
+
+def generate_marksheet_pdf(student, theory_subjects, practical_subjects):
+    """
+    Generate a professional PDF marksheet using ReportLab.
+    Returns a BytesIO buffer containing the PDF data.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.platypus import (
+        SimpleDocTemplate, Table, TableStyle, Paragraph,
+        Spacer, HRFlowable
+    )
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+
+    buffer = io.BytesIO()
+
+    # Create PDF document with A4 size and margins
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=1.5*cm,
+        leftMargin=1.5*cm,
+        topMargin=1.5*cm,
+        bottomMargin=1.5*cm
+    )
+
+    styles = getSampleStyleSheet()
+    story  = []  # List of flowable elements for the PDF
+
+    # ── Custom styles ──────────────────────────────────────────────────────
+    title_style = ParagraphStyle(
+        'Title',
+        parent=styles['Normal'],
+        fontSize=16,
+        fontName='Helvetica-Bold',
+        alignment=TA_CENTER,
+        textColor=colors.HexColor('#1a237e'),
+        spaceAfter=4
+    )
+    subtitle_style = ParagraphStyle(
+        'Subtitle',
+        parent=styles['Normal'],
+        fontSize=11,
+        fontName='Helvetica-Bold',
+        alignment=TA_CENTER,
+        textColor=colors.HexColor('#283593'),
+        spaceAfter=2
+    )
+    small_center = ParagraphStyle(
+        'SmallCenter',
+        parent=styles['Normal'],
+        fontSize=9,
+        alignment=TA_CENTER,
+        textColor=colors.HexColor('#555555'),
+        spaceAfter=2
+    )
+    label_style = ParagraphStyle(
+        'Label',
+        parent=styles['Normal'],
+        fontSize=9,
+        fontName='Helvetica-Bold'
+    )
+    value_style = ParagraphStyle(
+        'Value',
+        parent=styles['Normal'],
+        fontSize=9,
+        fontName='Helvetica'
+    )
+
+    # ── College Header ─────────────────────────────────────────────────────
+    story.append(Paragraph("KANHAIYA LAL POLYTECHNIC ROORKEE (KLP)", title_style))
+    story.append(Paragraph("Affiliated to Uttarakhand Board of Technical Education (UBTER), Roorkee", subtitle_style))
+    story.append(Paragraph("Affiliated & Recognized by All India Council for Technical Education (AICTE)", small_center))
+    story.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor('#1a237e')))
+    story.append(Spacer(1, 0.3*cm))
+    story.append(Paragraph("SEMESTER MARKSHEET", ParagraphStyle(
+        'SheetTitle',
+        parent=styles['Normal'],
+        fontSize=13,
+        fontName='Helvetica-Bold',
+        alignment=TA_CENTER,
+        textColor=colors.HexColor('#c62828'),
+        spaceAfter=6
+    )))
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#1a237e')))
+    story.append(Spacer(1, 0.3*cm))
+
+    # ── Student Information Table ──────────────────────────────────────────
+    info_data = [
+        ["Student Name:", student.name,                  "Roll Number:", student.roll_number],
+        ["Enrollment No:", student.enrollment_no,         "Father's Name:", student.father_name],
+        ["Branch:", student.branch,                      "Category:", student.category],
+        ["Institution:", student.institution,             "Semester:", f"Semester {student.semester}"],
+        ["Academic Year:", student.academic_year,         "", ""],
+    ]
+
+    info_table = Table(info_data, colWidths=[3.5*cm, 5.5*cm, 3.5*cm, 5.5*cm])
+    info_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#1a237e')),
+        ('TEXTCOLOR', (2, 0), (2, -1), colors.HexColor('#1a237e')),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ROWBACKGROUNDS', (0, 0), (-1, -1), [colors.HexColor('#f3f4f6'), colors.white]),
+        ('GRID', (0, 0), (-1, -1), 0.3, colors.HexColor('#cccccc')),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    story.append(info_table)
+    story.append(Spacer(1, 0.4*cm))
+
+    # ── Theory Subjects Table ──────────────────────────────────────────────
+    if theory_subjects:
+        story.append(Paragraph("THEORY SUBJECTS", ParagraphStyle(
+            'SectionHead',
+            parent=styles['Normal'],
+            fontSize=10,
+            fontName='Helvetica-Bold',
+            textColor=colors.white,
+            backColor=colors.HexColor('#1a237e'),
+            leftIndent=4,
+            spaceAfter=0
+        )))
+
+        th_header = [["S.No", "Subject Code", "Subject Name", "Max Marks", "Marks Obtained", "Grade", "Result"]]
+        th_rows = []
+        for i, s in enumerate(theory_subjects, 1):
+            th_rows.append([
+                str(i), s.subject_code, s.subject_name,
+                str(s.max_marks), str(s.marks_obtained),
+                s.grade or "-", s.result or "-"
+            ])
+        # Total row
+        th_total_max = sum(s.max_marks for s in theory_subjects)
+        th_total_obt = sum(s.marks_obtained for s in theory_subjects)
+        th_rows.append(["", "TOTAL", "", str(th_total_max), str(th_total_obt), "", ""])
+
+        th_data = th_header + th_rows
+        th_table = Table(th_data, colWidths=[1*cm, 2.5*cm, 5.5*cm, 2*cm, 2.5*cm, 1.5*cm, 1.5*cm])
+        th_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1a237e')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (2, 0), (2, -1), 'LEFT'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#e8eaf6')]),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#c5cae9')),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#9fa8da')),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        story.append(th_table)
+        story.append(Spacer(1, 0.3*cm))
+
+    # ── Practical Subjects Table ───────────────────────────────────────────
+    if practical_subjects:
+        story.append(Paragraph("PRACTICAL SUBJECTS", ParagraphStyle(
+            'SectionHead2',
+            parent=styles['Normal'],
+            fontSize=10,
+            fontName='Helvetica-Bold',
+            textColor=colors.white,
+            backColor=colors.HexColor('#1b5e20'),
+            leftIndent=4,
+            spaceAfter=0
+        )))
+
+        pr_header = [["S.No", "Subject Code", "Subject Name", "Max Marks", "Marks Obtained", "Grade", "Result"]]
+        pr_rows = []
+        for i, s in enumerate(practical_subjects, 1):
+            pr_rows.append([
+                str(i), s.subject_code, s.subject_name,
+                str(s.max_marks), str(s.marks_obtained),
+                s.grade or "-", s.result or "-"
+            ])
+        pr_total_max = sum(s.max_marks for s in practical_subjects)
+        pr_total_obt = sum(s.marks_obtained for s in practical_subjects)
+        pr_rows.append(["", "TOTAL", "", str(pr_total_max), str(pr_total_obt), "", ""])
+
+        pr_data = pr_header + pr_rows
+        pr_table = Table(pr_data, colWidths=[1*cm, 2.5*cm, 5.5*cm, 2*cm, 2.5*cm, 1.5*cm, 1.5*cm])
+        pr_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1b5e20')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (2, 0), (2, -1), 'LEFT'),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#e8f5e9')]),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#c8e6c9')),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#a5d6a7')),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        story.append(pr_table)
+        story.append(Spacer(1, 0.3*cm))
+
+    # ── Result Summary Box ─────────────────────────────────────────────────
+    grand_total_max = sum(s.max_marks for s in theory_subjects + practical_subjects)
+    grand_total_obt = sum(s.marks_obtained for s in theory_subjects + practical_subjects)
+
+    result_color = colors.HexColor('#1b5e20') if student.semester_result == 'PASS' else colors.HexColor('#b71c1c')
+
+    summary_data = [
+        ["Grand Total:", f"{grand_total_obt} / {grand_total_max}",
+         "Percentage:", f"{(grand_total_obt/grand_total_max*100):.2f}%" if grand_total_max > 0 else "N/A"],
+        ["SGPA:", str(student.sgpa or "N/A"),
+         "CGPA:", str(student.cgpa or "N/A")],
+        ["Semester Result:", student.semester_result or "N/A", "", ""],
+    ]
+    summary_table = Table(summary_data, colWidths=[3.5*cm, 4*cm, 3.5*cm, 7*cm])
+    summary_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#1a237e')),
+        ('TEXTCOLOR', (2, 0), (2, -1), colors.HexColor('#1a237e')),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#e3f2fd')),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#90caf9')),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('SPAN', (1, 2), (3, 2)),
+        ('TEXTCOLOR', (1, 2), (1, 2), result_color),
+        ('FONTNAME', (1, 2), (1, 2), 'Helvetica-Bold'),
+        ('FONTSIZE', (1, 2), (1, 2), 11),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    story.append(summary_table)
+    story.append(Spacer(1, 0.6*cm))
+
+    # ── Footer / Signature Block ───────────────────────────────────────────
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#1a237e')))
+    story.append(Spacer(1, 0.2*cm))
+
+    footer_data = [
+        ["Student's Signature", "Examination Controller", "Principal"],
+        ["___________________", "___________________", "___________________"],
+        ["", "KLP Roorkee", "KLP Roorkee"],
+    ]
+    footer_table = Table(footer_data, colWidths=[6*cm, 6*cm, 6*cm])
+    footer_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    story.append(footer_table)
+    story.append(Spacer(1, 0.2*cm))
+    story.append(Paragraph(
+        "This is a computer-generated marksheet. Official seal required for verification. "
+        "For queries, contact: info@klproorkee.edu.in | +91-1332-XXXXXX",
+        ParagraphStyle('Footer', parent=styles['Normal'], fontSize=7,
+                       alignment=TA_CENTER, textColor=colors.grey)
+    ))
+
+    # Build the PDF
+    doc.build(story)
+    buffer.seek(0)  # Rewind to beginning so Flask can read it
+    return buffer
+
+================================================================================  END OF: routes/result.py  =====
+
+
+################################################################################
+#  FILE 8 of 18: templates/base.html
+#  TYPE: HTML
+#  PURPOSE: Shared layout — navbar + footer for all pages
+################################################################################
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}KLP Roorkee - Kanhaiya Lal Polytechnic{% endblock %}</title>
+    <!-- Bootstrap CSS for responsive layout -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Merriweather:wght@700&display=swap" rel="stylesheet">
+    <!-- Custom site styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<!-- ── Top Navigation Bar ─────────────────────────────────────────────── -->
+<nav class="navbar navbar-expand-lg navbar-dark sticky-top" id="mainNav">
+    <div class="container">
+        <!-- Logo + College name -->
+        <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('main.home') }}">
+            <img src="{{ url_for('static', filename='images/logo.png') }}"
+                 alt="KLP Logo" class="nav-logo-img">
+            <div class="d-none d-md-block">
+                <div class="nav-college-name">KLP Roorkee</div>
+                <div class="nav-college-sub">Kanhaiya Lal Polytechnic</div>
+            </div>
+        </a>
+
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-1">
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('main.home') }}#about">About</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('main.home') }}#departments">Departments</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('main.home') }}#courses">Courses</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('main.home') }}#sports">Sports</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('main.home') }}#partners">Placement</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('main.home') }}#ubter">UBTER</a></li>
+                <!-- Result button stands out -->
+                <li class="nav-item ms-lg-2">
+                    <a class="btn btn-warning fw-bold px-3" href="{{ url_for('result.result_home') }}">
+                        <i class="bi bi-award me-1"></i>Student Result
+                    </a>
+                </li>
+                <li class="nav-item ms-lg-1">
+                    <a class="btn btn-outline-light px-3" href="{{ url_for('admin.login') }}">
+                        <i class="bi bi-shield-lock me-1"></i>Admin
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<!-- Flash messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="container mt-3">
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            <i class="bi bi-{% if category == 'success' %}check-circle{% elif category == 'danger' %}x-circle{% elif category == 'warning' %}exclamation-triangle{% else %}info-circle{% endif %} me-2"></i>
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+<!-- Page content -->
+{% block content %}{% endblock %}
+
+<!-- ── Footer ─────────────────────────────────────────────────────────── -->
+<footer class="klp-footer mt-5">
+    <div class="container">
+        <div class="row g-4 py-5">
+            <!-- College Info -->
+            <div class="col-lg-4 col-md-6">
+                <div class="footer-logo-circle mb-3">KLP</div>
+                <h5 class="text-white fw-bold">Kanhaiya Lal Polytechnic</h5>
+                <p class="text-white-50 small">
+                    Roorkee, Haridwar, Uttarakhand<br>
+                    Affiliated to UBTER &amp; Approved by AICTE<br>
+                    Empowering technical education since inception.
+                </p>
+                <div class="d-flex gap-2 mt-3">
+                    <a href="#" class="btn btn-sm btn-outline-light rounded-circle p-2"><i class="bi bi-facebook"></i></a>
+                    <a href="#" class="btn btn-sm btn-outline-light rounded-circle p-2"><i class="bi bi-twitter-x"></i></a>
+                    <a href="#" class="btn btn-sm btn-outline-light rounded-circle p-2"><i class="bi bi-youtube"></i></a>
+                    <a href="#" class="btn btn-sm btn-outline-light rounded-circle p-2"><i class="bi bi-instagram"></i></a>
+                </div>
+            </div>
+
+            <!-- Quick Links -->
+            <div class="col-lg-2 col-md-6">
+                <h6 class="text-warning fw-bold mb-3 text-uppercase ls-wider">Quick Links</h6>
+                <ul class="list-unstyled footer-links">
+                    <li><a href="{{ url_for('main.home') }}#about">About KLP</a></li>
+                    <li><a href="{{ url_for('main.home') }}#departments">Departments</a></li>
+                    <li><a href="{{ url_for('main.home') }}#courses">Our Courses</a></li>
+                    <li><a href="{{ url_for('main.home') }}#sports">Sports</a></li>
+                    <li><a href="{{ url_for('result.result_home') }}">Student Result</a></li>
+                    <li><a href="{{ url_for('admin.login') }}">Admin Panel</a></li>
+                </ul>
+            </div>
+
+            <!-- UBTER -->
+            <div class="col-lg-3 col-md-6">
+                <h6 class="text-warning fw-bold mb-3 text-uppercase">UBTER</h6>
+                <ul class="list-unstyled footer-links">
+                    <li><a href="https://ubter.in" target="_blank"><i class="bi bi-globe me-1"></i>ubter.in</a></li>
+                    <li><a href="https://ubter.in/jeep" target="_blank"><i class="bi bi-pencil-square me-1"></i>JEEP Exam Registration</a></li>
+                    <li><span class="text-white-50 small"><i class="bi bi-envelope me-1"></i>info@ubter.in</span></li>
+                    <li><span class="text-white-50 small"><i class="bi bi-telephone me-1"></i>0135-2789311</span></li>
+                </ul>
+            </div>
+
+            <!-- Contact -->
+            <div class="col-lg-3 col-md-6">
+                <h6 class="text-warning fw-bold mb-3 text-uppercase">Contact KLP</h6>
+                <ul class="list-unstyled text-white-50 small">
+                    <li class="mb-2"><i class="bi bi-geo-alt-fill text-warning me-2"></i>Kanhaiya Lal Polytechnic, Roorkee, Haridwar, Uttarakhand - 247667</li>
+                    <li class="mb-2"><i class="bi bi-envelope-fill text-warning me-2"></i>info@klproorkee.edu.in</li>
+                    <li class="mb-2"><i class="bi bi-telephone-fill text-warning me-2"></i>+91-1332-XXXXXX</li>
+                </ul>
+            </div>
+        </div>
+
+        <hr class="border-secondary">
+        <div class="row py-3">
+            <div class="col-md-6 text-center text-md-start">
+                <p class="text-white-50 small mb-0">
+                    &copy; 2024 Kanhaiya Lal Polytechnic Roorkee. All Rights Reserved.
+                </p>
+            </div>
+            <div class="col-md-6 text-center text-md-end">
+                <p class="text-white-50 small mb-0">
+                    Affiliated to UBTER | Approved by AICTE, New Delhi
+                </p>
+            </div>
+        </div>
+    </div>
+</footer>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Custom JS -->
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>
+
+================================================================================  END OF: templates/base.html  =====
+
+
+################################################################################
+#  FILE 9 of 18: templates/home.html
+#  TYPE: HTML
+#  PURPOSE: Homepage with hero, departments, courses, sports, partners
+################################################################################
+
+{% extends "base.html" %}
+{% block title %}KLP Roorkee - Kanhaiya Lal Polytechnic Roorkee | Official Website{% endblock %}
+
+{% block content %}
+
+<!-- ══════════════════════════════════════════════════════════
+     HERO SECTION — College banner with founder & logo
+═══════════════════════════════════════════════════════════ -->
+<section class="klp-hero">
+    <div class="hero-overlay"></div>
+    <div class="container position-relative z-1 py-5">
+        <div class="row align-items-center min-vh-75 g-4">
+
+            <!-- Founder image (left side) -->
+            <div class="col-md-3 text-center">
+                <div class="founder-frame mx-auto">
+                    <img src="{{ url_for('static', filename='images/founder.png') }}"
+                         alt="Shri Kanhaiya Lal Ji — College Founder"
+                         class="founder-photo">
+                </div>
+                <div class="founder-badge mt-2">
+                    <span class="badge bg-warning text-dark px-3 py-2 fs-6">College Founder</span>
+                </div>
+                <div class="text-white mt-1 fw-bold small">Shri Kanhaiya Lal Ji</div>
+            </div>
+
+            <!-- Hero text (center) -->
+            <div class="col-md-6 text-center text-white">
+                <div class="hero-estd badge bg-warning text-dark px-3 py-1 mb-3">Est. Since Inception · Roorkee, Uttarakhand</div>
+                <h1 class="hero-title fw-black">KANHAIYA LAL<br><span class="text-warning">POLYTECHNIC</span></h1>
+                <h2 class="hero-subtitle">ROORKEE <span class="text-warning">(KLP)</span></h2>
+                <p class="hero-tagline mt-3">
+                    Affiliated to <strong>UBTER</strong> &amp; Approved by <strong>AICTE, New Delhi</strong><br>
+                    Shaping Engineers &amp; Technical Leaders of Tomorrow
+                </p>
+                <div class="d-flex justify-content-center gap-3 mt-4 flex-wrap">
+                    <a href="{{ url_for('result.result_home') }}" class="btn btn-warning btn-lg fw-bold px-4">
+                        <i class="bi bi-award me-2"></i>Check Result
+                    </a>
+                    <a href="https://ubter.in" target="_blank" class="btn btn-outline-light btn-lg px-4">
+                        <i class="bi bi-pencil-square me-2"></i>JEEP Exam Registration
+                    </a>
+                    <a href="#departments" class="btn btn-outline-warning btn-lg px-4">
+                        <i class="bi bi-building me-2"></i>Explore Departments
+                    </a>
+                </div>
+            </div>
+
+            <!-- College logo (right side) -->
+            <div class="col-md-3 text-center">
+                <div class="klp-logo-img-wrap mx-auto">
+                    <img src="{{ url_for('static', filename='images/logo.png') }}"
+                         alt="KLP Roorkee — College Logo"
+                         class="klp-logo-img">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scroll indicator -->
+    <div class="hero-scroll-down">
+        <a href="#about" class="text-white text-decoration-none">
+            <div class="scroll-arrow"><i class="bi bi-chevron-double-down"></i></div>
+        </a>
+    </div>
+</section>
+
+<!-- Stats bar -->
+<div class="stats-bar py-3">
+    <div class="container">
+        <div class="row text-center g-2">
+            <div class="col-6 col-md-3">
+                <div class="stat-item"><span class="stat-num">6</span><span class="stat-label">Departments</span></div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-item"><span class="stat-num">360+</span><span class="stat-label">Seats Per Year</span></div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-item"><span class="stat-num">13+</span><span class="stat-label">Hiring Partners</span></div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-item"><span class="stat-num">3 Yrs</span><span class="stat-label">Diploma Program</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     ABOUT SECTION
+═══════════════════════════════════════════════════════════ -->
+<section class="py-5" id="about">
+    <div class="container">
+        <div class="section-header text-center mb-5">
+            <span class="section-badge">About Us</span>
+            <h2 class="section-title">About <span class="text-primary">KLP Roorkee</span></h2>
+            <div class="section-divider"></div>
+        </div>
+
+        <div class="row g-4 align-items-center">
+            <div class="col-lg-6">
+                <div class="about-content">
+                    <h3 class="fw-bold text-primary mb-3">Kanhaiya Lal Polytechnic Roorkee</h3>
+                    <p class="lead text-muted">
+                        Kanhaiya Lal Polytechnic (KLP) Roorkee is a premier technical institution located in Roorkee, Haridwar district, Uttarakhand. The institute is affiliated with <strong>Uttarakhand Board of Technical Education (UBTER)</strong>, Dehradun, and is approved by the <strong>All India Council for Technical Education (AICTE)</strong>, New Delhi.
+                    </p>
+                    <p class="text-muted">
+                        KLP is dedicated to providing quality technical education to students from Uttarakhand and surrounding regions. The college offers 3-year Diploma programs in various engineering disciplines, equipping students with the skills and knowledge required for industrial employment and entrepreneurship.
+                    </p>
+                    <p class="text-muted">
+                        The institute has modern laboratories, workshops, a well-stocked library, and qualified faculty members who are committed to student success. KLP actively participates in campus placements, sports competitions, and cultural events, creating a holistic development environment for students.
+                    </p>
+                    <div class="row g-3 mt-3">
+                        <div class="col-sm-6">
+                            <div class="about-feature">
+                                <i class="bi bi-check2-circle text-success me-2"></i>UBTER Affiliated
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="about-feature">
+                                <i class="bi bi-check2-circle text-success me-2"></i>AICTE Approved
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="about-feature">
+                                <i class="bi bi-check2-circle text-success me-2"></i>Modern Laboratories
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="about-feature">
+                                <i class="bi bi-check2-circle text-success me-2"></i>Campus Placement
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="about-feature">
+                                <i class="bi bi-check2-circle text-success me-2"></i>Sports Facilities
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="about-feature">
+                                <i class="bi bi-check2-circle text-success me-2"></i>Expert Faculty
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <!-- Vision & Mission cards -->
+                <div class="vision-card mb-3">
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="vision-icon bg-primary"><i class="bi bi-eye-fill text-white fs-4"></i></div>
+                        <div>
+                            <h5 class="fw-bold text-primary">Our Vision</h5>
+                            <p class="text-muted mb-0">
+                                To be a leading technical institution in Uttarakhand that produces skilled, ethical, and industry-ready polytechnic graduates who contribute meaningfully to the nation's development and technological advancement.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="vision-card mb-3">
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="vision-icon bg-success"><i class="bi bi-bullseye text-white fs-4"></i></div>
+                        <div>
+                            <h5 class="fw-bold text-success">Our Mission</h5>
+                            <p class="text-muted mb-0">
+                                To provide affordable, high-quality technical education through experienced faculty, modern infrastructure, and industry collaboration — ensuring every student is job-ready, value-driven, and capable of contributing to society's progress.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="vision-card">
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="vision-icon bg-warning"><i class="bi bi-gem text-white fs-4"></i></div>
+                        <div>
+                            <h5 class="fw-bold text-warning">Core Values</h5>
+                            <p class="text-muted mb-0">
+                                Excellence in Education · Integrity &amp; Discipline · Practical Skill Development · Industry Relevance · Inclusive Growth · Community Service
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     DEPARTMENTS SECTION
+═══════════════════════════════════════════════════════════ -->
+<section class="py-5 bg-light" id="departments">
+    <div class="container">
+        <div class="section-header text-center mb-5">
+            <span class="section-badge">Our Programs</span>
+            <h2 class="section-title">Departments &amp; <span class="text-primary">Branches</span></h2>
+            <div class="section-divider"></div>
+            <p class="text-muted mt-3">Six specialized engineering departments with modern labs, workshops, and industry-aligned curriculum</p>
+        </div>
+
+        <div class="row g-4">
+            {% for dept in departments %}
+            <div class="col-lg-4 col-md-6">
+                <div class="dept-card h-100">
+                    <div class="dept-icon-wrap">
+                        <span class="dept-icon">{{ dept.icon }}</span>
+                    </div>
+                    <div class="dept-code">{{ dept.code }}</div>
+                    <h4 class="dept-name">{{ dept.name }}</h4>
+                    <p class="dept-desc">{{ dept.desc }}</p>
+                    <div class="dept-meta">
+                        <span class="badge bg-primary me-2">
+                            <i class="bi bi-people me-1"></i>{{ dept.seats }} Seats
+                        </span>
+                        <span class="badge bg-success">
+                            <i class="bi bi-calendar me-1"></i>3 Years Diploma
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     COURSES SECTION
+═══════════════════════════════════════════════════════════ -->
+<section class="py-5" id="courses">
+    <div class="container">
+        <div class="section-header text-center mb-5">
+            <span class="section-badge">Academics</span>
+            <h2 class="section-title">Courses <span class="text-primary">We Offer</span></h2>
+            <div class="section-divider"></div>
+        </div>
+
+        <div class="row g-4">
+            <!-- Course Card 1 -->
+            <div class="col-lg-6">
+                <div class="course-card">
+                    <div class="course-header bg-primary">
+                        <h5 class="text-white mb-0"><i class="bi bi-mortarboard me-2"></i>3-Year Diploma in Engineering</h5>
+                    </div>
+                    <div class="course-body">
+                        <p class="text-muted">Government-recognized 3-year full-time diploma programs approved by AICTE and affiliated to UBTER, Dehradun.</p>
+                        <ul class="course-list">
+                            <li>Diploma in Civil Engineering</li>
+                            <li>Diploma in Mechanical Engineering</li>
+                            <li>Diploma in Electrical Engineering</li>
+                            <li>Diploma in Electronics Engineering</li>
+                            <li>Diploma in AI &amp; Machine Learning</li>
+                            <li>Diploma in Computer Communication &amp; Networking</li>
+                        </ul>
+                        <div class="mt-3">
+                            <span class="badge bg-light text-dark me-2 border"><i class="bi bi-clock me-1"></i>Duration: 3 Years</span>
+                            <span class="badge bg-light text-dark me-2 border"><i class="bi bi-calendar2 me-1"></i>6 Semesters</span>
+                            <span class="badge bg-light text-dark border"><i class="bi bi-award me-1"></i>UBTER Certificate</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admission Process -->
+            <div class="col-lg-6">
+                <div class="course-card">
+                    <div class="course-header bg-success">
+                        <h5 class="text-white mb-0"><i class="bi bi-pencil-square me-2"></i>Admission Process (JEEP)</h5>
+                    </div>
+                    <div class="course-body">
+                        <p class="text-muted">Admissions are done through the <strong>Joint Entrance Exam for Polytechnics (JEEP)</strong> conducted by UBTER, Dehradun.</p>
+                        <ol class="course-list">
+                            <li>Register online at <strong>ubter.in</strong> for JEEP exam</li>
+                            <li>Appear in the JEEP entrance examination</li>
+                            <li>Check results and merit rank on UBTER portal</li>
+                            <li>Participate in online counselling process</li>
+                            <li>Report to KLP Roorkee with original documents</li>
+                            <li>Complete admission formalities and fee payment</li>
+                        </ol>
+                        <div class="mt-3">
+                            <a href="https://ubter.in" target="_blank" class="btn btn-success btn-sm">
+                                <i class="bi bi-box-arrow-up-right me-1"></i>Visit UBTER Official Website
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Eligibility -->
+            <div class="col-lg-4">
+                <div class="info-highlight-card bg-primary-subtle border-primary">
+                    <h6 class="fw-bold text-primary"><i class="bi bi-clipboard-check me-2"></i>Eligibility</h6>
+                    <ul class="small text-muted mb-0 ps-3">
+                        <li>Passed 10th class (High School) from recognized board</li>
+                        <li>Minimum 35% marks in aggregate</li>
+                        <li>Science &amp; Mathematics as compulsory subjects</li>
+                        <li>Age: Min 14 years (relaxation for reserved categories)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Fee Structure -->
+            <div class="col-lg-4">
+                <div class="info-highlight-card bg-success-subtle border-success">
+                    <h6 class="fw-bold text-success"><i class="bi bi-currency-rupee me-2"></i>Fee Structure</h6>
+                    <ul class="small text-muted mb-0 ps-3">
+                        <li>Tuition Fee as per UBTER norms</li>
+                        <li>Examination Fee (per semester)</li>
+                        <li>Development &amp; Library Fee</li>
+                        <li>Scholarship available for eligible students</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Important Dates -->
+            <div class="col-lg-4">
+                <div class="info-highlight-card bg-warning-subtle border-warning">
+                    <h6 class="fw-bold text-warning"><i class="bi bi-calendar-event me-2"></i>Important Dates</h6>
+                    <ul class="small text-muted mb-0 ps-3">
+                        <li>JEEP Registration: As per UBTER schedule</li>
+                        <li>Exam Date: Published on ubter.in</li>
+                        <li>Result Declaration: After exam</li>
+                        <li>Counselling: July–August (approx.)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     SPORTS SECTION
+═══════════════════════════════════════════════════════════ -->
+<section class="py-5 sports-section" id="sports">
+    <div class="container">
+        <div class="section-header text-center mb-5">
+            <span class="section-badge">Campus Life</span>
+            <h2 class="section-title">Sports &amp; <span class="text-warning">Activities</span></h2>
+            <div class="section-divider bg-warning"></div>
+            <p class="mt-3">KLP believes in holistic development — academics plus sports and cultural activities</p>
+        </div>
+
+        <div class="row g-4">
+            {% for event in sports_events %}
+            <div class="col-lg-6">
+                <div class="sports-card">
+                    <div class="sports-card-header">
+                        <div class="sports-icon">{{ event.icon }}</div>
+                        <div>
+                            <h4 class="sports-name mb-1">{{ event.name }}</h4>
+                            <span class="badge bg-warning text-dark">{{ event.type }}</span>
+                        </div>
+                    </div>
+                    <p class="sports-desc">{{ event.desc }}</p>
+                    <div class="sports-highlights">
+                        <h6 class="fw-bold mb-2">Events &amp; Activities:</h6>
+                        <div class="d-flex flex-wrap gap-2">
+                            {% for h in event.highlights %}
+                            <span class="badge sports-badge"><i class="bi bi-trophy me-1"></i>{{ h }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- Additional sports activities -->
+            <div class="col-12">
+                <div class="sports-extra-card">
+                    <div class="row g-4 text-center">
+                        <div class="col-6 col-md-3">
+                            <div class="sport-icon-item">
+                                <div class="sport-emoji">🏏</div>
+                                <div class="sport-name">Cricket</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="sport-icon-item">
+                                <div class="sport-emoji">⚽</div>
+                                <div class="sport-name">Football</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="sport-icon-item">
+                                <div class="sport-emoji">🏀</div>
+                                <div class="sport-name">Basketball</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="sport-icon-item">
+                                <div class="sport-emoji">🏸</div>
+                                <div class="sport-name">Badminton</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="sport-icon-item">
+                                <div class="sport-emoji">🏋️</div>
+                                <div class="sport-name">Athletics</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="sport-icon-item">
+                                <div class="sport-emoji">🏐</div>
+                                <div class="sport-name">Volleyball</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="sport-icon-item">
+                                <div class="sport-emoji">♟️</div>
+                                <div class="sport-name">Chess</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="sport-icon-item">
+                                <div class="sport-emoji">🏓</div>
+                                <div class="sport-name">Table Tennis</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     HIRING PARTNERS — Auto-scrolling slider
+═══════════════════════════════════════════════════════════ -->
+<section class="py-5" id="partners">
+    <div class="container">
+        <div class="section-header text-center mb-5">
+            <span class="section-badge">Placement &amp; Careers</span>
+            <h2 class="section-title">Our <span class="text-primary">Hiring Partners</span></h2>
+            <div class="section-divider"></div>
+            <p class="text-muted mt-3">Top companies recruit KLP graduates for engineering and technical roles</p>
+        </div>
+
+        <!-- Partners Slider -->
+        <div class="partners-slider-wrapper">
+            <div class="partners-slider" id="partnersSlider">
+                {% for partner in hiring_partners %}
+                <div class="partner-slide">
+                    <div class="partner-card">
+                        <div class="partner-logo-placeholder">
+                            {{ partner.name[0] }}{{ partner.name.split(' ')[-1][0] if ' ' in partner.name else '' }}
+                        </div>
+                        <div class="partner-name">{{ partner.name }}</div>
+                        <div class="partner-sector">{{ partner.sector }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+                <!-- Duplicate for seamless looping -->
+                {% for partner in hiring_partners %}
+                <div class="partner-slide">
+                    <div class="partner-card">
+                        <div class="partner-logo-placeholder">
+                            {{ partner.name[0] }}{{ partner.name.split(' ')[-1][0] if ' ' in partner.name else '' }}
+                        </div>
+                        <div class="partner-name">{{ partner.name }}</div>
+                        <div class="partner-sector">{{ partner.sector }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="text-center mt-4 text-muted small">
+            <i class="bi bi-info-circle me-1"></i>
+            KLP actively connects students with top recruiters through campus placement drives, job fairs, and industry partnerships.
+        </div>
+    </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     UBTER SECTION — Official links and contact
+═══════════════════════════════════════════════════════════ -->
+<section class="py-5 bg-primary-dark" id="ubter">
+    <div class="container">
+        <div class="section-header text-center mb-5">
+            <span class="section-badge-light">Regulatory Body</span>
+            <h2 class="section-title text-white">UBTER — <span class="text-warning">Official Information</span></h2>
+            <div class="section-divider bg-warning"></div>
+            <p class="text-white-50 mt-3">Uttarakhand Board of Technical Education — The Governing Board for all Polytechnic Institutes in Uttarakhand</p>
+        </div>
+
+        <div class="row g-4">
+            <!-- JEEP Registration Button -->
+            <div class="col-12 text-center mb-3">
+                <a href="https://ubter.in" target="_blank" class="btn btn-warning btn-lg fw-bold px-5 py-3 me-3">
+                    <i class="bi bi-pencil-square me-2 fs-5"></i>JEEP Exam Registration — ubter.in
+                </a>
+                <a href="https://ubter.in/result" target="_blank" class="btn btn-outline-light btn-lg px-5 py-3">
+                    <i class="bi bi-file-earmark-text me-2 fs-5"></i>UBTER Result Portal
+                </a>
+            </div>
+
+            <!-- Dehradun HQ -->
+            <div class="col-lg-4 col-md-6">
+                <div class="ubter-card">
+                    <div class="ubter-card-icon"><i class="bi bi-building-fill-gear"></i></div>
+                    <h5 class="fw-bold text-white mb-3">UBTER — Dehradun HQ</h5>
+                    <ul class="list-unstyled text-white-75 small">
+                        <li class="mb-2"><i class="bi bi-geo-alt-fill text-warning me-2"></i>
+                            Subhash Nagar, Dehradun, Uttarakhand - 248002
+                        </li>
+                        <li class="mb-2"><i class="bi bi-telephone-fill text-warning me-2"></i>
+                            0135-2789311, 0135-2789312
+                        </li>
+                        <li class="mb-2"><i class="bi bi-envelope-fill text-warning me-2"></i>
+                            info@ubter.in
+                        </li>
+                        <li class="mb-2"><i class="bi bi-globe text-warning me-2"></i>
+                            <a href="https://ubter.in" target="_blank" class="text-warning">www.ubter.in</a>
+                        </li>
+                        <li class="mb-2"><i class="bi bi-clock-fill text-warning me-2"></i>
+                            Mon–Sat: 10:00 AM – 5:00 PM
+                        </li>
+                    </ul>
+                    <a href="https://maps.google.com/?q=UBTER+Dehradun+Uttarakhand" target="_blank" class="btn btn-sm btn-warning mt-2">
+                        <i class="bi bi-map me-1"></i>View on Map
+                    </a>
+                </div>
+            </div>
+
+            <!-- Roorkee HQ -->
+            <div class="col-lg-4 col-md-6">
+                <div class="ubter-card">
+                    <div class="ubter-card-icon"><i class="bi bi-geo-fill"></i></div>
+                    <h5 class="fw-bold text-white mb-3">UBTER — Roorkee Office</h5>
+                    <ul class="list-unstyled text-white-75 small">
+                        <li class="mb-2"><i class="bi bi-geo-alt-fill text-warning me-2"></i>
+                            Civil Lines, Roorkee, Haridwar, Uttarakhand - 247667
+                        </li>
+                        <li class="mb-2"><i class="bi bi-telephone-fill text-warning me-2"></i>
+                            01332-XXXXXX
+                        </li>
+                        <li class="mb-2"><i class="bi bi-envelope-fill text-warning me-2"></i>
+                            roorkee@ubter.in
+                        </li>
+                        <li class="mb-2"><i class="bi bi-globe text-warning me-2"></i>
+                            <a href="https://ubter.in" target="_blank" class="text-warning">www.ubter.in</a>
+                        </li>
+                        <li class="mb-2"><i class="bi bi-clock-fill text-warning me-2"></i>
+                            Mon–Sat: 10:00 AM – 5:00 PM
+                        </li>
+                    </ul>
+                    <a href="https://maps.google.com/?q=UBTER+Roorkee+Uttarakhand" target="_blank" class="btn btn-sm btn-warning mt-2">
+                        <i class="bi bi-map me-1"></i>View on Map
+                    </a>
+                </div>
+            </div>
+
+            <!-- Quick Links Card -->
+            <div class="col-lg-4 col-md-12">
+                <div class="ubter-card">
+                    <div class="ubter-card-icon"><i class="bi bi-link-45deg"></i></div>
+                    <h5 class="fw-bold text-white mb-3">UBTER Quick Links</h5>
+                    <div class="d-grid gap-2">
+                        <a href="https://ubter.in" target="_blank" class="btn btn-outline-warning btn-sm text-start">
+                            <i class="bi bi-house me-2"></i>UBTER Official Website
+                        </a>
+                        <a href="https://ubter.in/jeep" target="_blank" class="btn btn-outline-warning btn-sm text-start">
+                            <i class="bi bi-pencil-square me-2"></i>JEEP Registration Portal
+                        </a>
+                        <a href="https://ubter.in/result" target="_blank" class="btn btn-outline-warning btn-sm text-start">
+                            <i class="bi bi-file-earmark-check me-2"></i>Exam Result Portal
+                        </a>
+                        <a href="https://ubter.in/admissions" target="_blank" class="btn btn-outline-warning btn-sm text-start">
+                            <i class="bi bi-person-plus me-2"></i>Admissions Information
+                        </a>
+                        <a href="https://ubter.in/syllabus" target="_blank" class="btn btn-outline-warning btn-sm text-start">
+                            <i class="bi bi-book me-2"></i>Syllabus &amp; Curriculum
+                        </a>
+                        <a href="https://ubter.in/notification" target="_blank" class="btn btn-outline-warning btn-sm text-start">
+                            <i class="bi bi-bell me-2"></i>Latest Notifications
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     RESULT CTA — Prominent call-to-action for result
+═══════════════════════════════════════════════════════════ -->
+<section class="result-cta-section py-5">
+    <div class="container text-center">
+        <div class="result-cta-box">
+            <div class="result-cta-icon"><i class="bi bi-award-fill"></i></div>
+            <h2 class="text-white fw-black mb-3">Check Your Semester Result</h2>
+            <p class="text-white-75 mb-4 fs-5">
+                Enter your Roll Number or Enrollment Number to view your complete marksheet with subject-wise marks, SGPA, CGPA, and download your result.
+            </p>
+            <a href="{{ url_for('result.result_home') }}" class="btn btn-warning btn-lg fw-bold px-5 py-3">
+                <i class="bi bi-search me-2 fs-5"></i>Search Your Result
+            </a>
+        </div>
+    </div>
+</section>
+
+{% endblock %}
+
+================================================================================  END OF: templates/home.html  =====
+
+
+################################################################################
+#  FILE 10 of 18: templates/result_search.html
+#  TYPE: HTML
+#  PURPOSE: Student roll number search form
+################################################################################
+
+{% extends "base.html" %}
+{% block title %}Student Result — KLP Roorkee{% endblock %}
+
+{% block content %}
+<div class="result-search-page min-vh-100 d-flex flex-column justify-content-center py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-6 col-md-8">
+
+                <!-- Header -->
+                <div class="text-center mb-4">
+                    <div class="result-search-badge">
+                        <i class="bi bi-award-fill fs-1 text-warning"></i>
+                    </div>
+                    <h2 class="fw-black mt-3 text-white">Student Result Portal</h2>
+                    <p class="text-white-75">Kanhaiya Lal Polytechnic Roorkee</p>
+                    <div class="divider-gold mx-auto mt-2"></div>
+                </div>
+
+                <!-- Search Card -->
+                <div class="result-search-card">
+                    <div class="result-search-card-header">
+                        <i class="bi bi-search me-2"></i>Search Your Result
+                    </div>
+                    <div class="result-search-card-body">
+                        <p class="text-muted text-center mb-4">
+                            Enter your <strong>Roll Number</strong> or <strong>Enrollment Number</strong> to view your semester marksheet.
+                        </p>
+
+                        <form method="POST" action="{{ url_for('result.result_home') }}" novalidate>
+                            <div class="mb-4">
+                                <label for="roll_number" class="form-label fw-semibold">
+                                    Roll Number / Enrollment Number
+                                </label>
+                                <div class="input-group input-group-lg">
+                                    <span class="input-group-text bg-primary text-white border-primary">
+                                        <i class="bi bi-person-badge"></i>
+                                    </span>
+                                    <input
+                                        type="text"
+                                        class="form-control border-primary"
+                                        id="roll_number"
+                                        name="roll_number"
+                                        placeholder="e.g. 2301001 or ENR2301001"
+                                        autocomplete="off"
+                                        required
+                                        autofocus
+                                    >
+                                </div>
+                                <div class="form-text text-muted mt-2">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    You can search using either your Roll Number or your Enrollment Number.
+                                </div>
+                            </div>
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg fw-bold">
+                                    <i class="bi bi-search me-2"></i>Find My Result
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Info boxes -->
+                        <div class="row g-2 mt-4">
+                            <div class="col-6">
+                                <div class="result-info-box border-primary">
+                                    <i class="bi bi-file-earmark-pdf text-danger fs-4 mb-1"></i>
+                                    <div class="small">Download PDF marksheet after searching</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="result-info-box border-success">
+                                    <i class="bi bi-shield-check text-success fs-4 mb-1"></i>
+                                    <div class="small">Official result as per UBTER records</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Back to home -->
+                <div class="text-center mt-4">
+                    <a href="{{ url_for('main.home') }}" class="btn btn-outline-light">
+                        <i class="bi bi-arrow-left me-2"></i>Back to Home
+                    </a>
+                </div>
+
+                <!-- Helpline -->
+                <div class="text-center mt-3 text-white-50 small">
+                    <i class="bi bi-telephone me-1"></i>For result queries, contact: <strong class="text-white">+91-1332-XXXXXX</strong>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+================================================================================  END OF: templates/result_search.html  =====
+
+
+################################################################################
+#  FILE 11 of 18: templates/result_display.html
+#  TYPE: HTML
+#  PURPOSE: Full marksheet display with theory/practical tables
+################################################################################
+
+{% extends "base.html" %}
+{% block title %}Result — {{ student.name }} | KLP Roorkee{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Print-specific styles for clean marksheet printing */
+    @media print {
+        .no-print { display: none !important; }
+        .marksheet-container { box-shadow: none !important; border: 1px solid #ccc; }
+        .navbar, footer { display: none !important; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+    <!-- Action bar (top) -->
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+        <a href="{{ url_for('result.result_home') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Back to Search
+        </a>
+        <div class="d-flex gap-2">
+            <button onclick="window.print()" class="btn btn-secondary">
+                <i class="bi bi-printer me-2"></i>Print
+            </button>
+            <a href="{{ url_for('result.download_pdf', student_id=student.id) }}" class="btn btn-danger fw-bold">
+                <i class="bi bi-file-earmark-pdf me-2"></i>Download PDF
+            </a>
+        </div>
+    </div>
+
+    <!-- Marksheet card -->
+    <div class="marksheet-container">
+
+        <!-- College Header -->
+        <div class="marksheet-header">
+            <div class="row align-items-center">
+                <div class="col-2 text-center">
+                    <div class="marksheet-logo">KLP</div>
+                </div>
+                <div class="col-8 text-center">
+                    <h3 class="college-main-name mb-0">KANHAIYA LAL POLYTECHNIC ROORKEE</h3>
+                    <div class="college-sub-name">Affiliated to Uttarakhand Board of Technical Education (UBTER), Dehradun</div>
+                    <div class="college-sub-name2">Approved by All India Council for Technical Education (AICTE), New Delhi</div>
+                    <div class="college-location"><i class="bi bi-geo-alt-fill me-1"></i>Roorkee, Haridwar, Uttarakhand — 247667</div>
+                </div>
+                <div class="col-2 text-center">
+                    <div class="marksheet-logo-right">
+                        <i class="bi bi-award-fill text-warning fs-2"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Title Band -->
+        <div class="marksheet-title-band">
+            SEMESTER MARK SHEET
+        </div>
+
+        <!-- Student Details Table -->
+        <div class="marksheet-section">
+            <table class="table table-bordered marksheet-info-table">
+                <tbody>
+                    <tr>
+                        <th class="info-label" width="20%">Student Name</th>
+                        <td class="info-value" width="30%"><strong>{{ student.name }}</strong></td>
+                        <th class="info-label" width="20%">Roll Number</th>
+                        <td class="info-value" width="30%"><strong>{{ student.roll_number }}</strong></td>
+                    </tr>
+                    <tr>
+                        <th class="info-label">Enrollment No.</th>
+                        <td class="info-value">{{ student.enrollment_no }}</td>
+                        <th class="info-label">Father's Name</th>
+                        <td class="info-value">{{ student.father_name }}</td>
+                    </tr>
+                    <tr>
+                        <th class="info-label">Branch / Department</th>
+                        <td class="info-value">{{ student.branch }}</td>
+                        <th class="info-label">Category</th>
+                        <td class="info-value">{{ student.category }}</td>
+                    </tr>
+                    <tr>
+                        <th class="info-label">Institution</th>
+                        <td class="info-value" colspan="3">{{ student.institution }}</td>
+                    </tr>
+                    <tr>
+                        <th class="info-label">Semester</th>
+                        <td class="info-value">Semester {{ student.semester }}</td>
+                        <th class="info-label">Academic Year</th>
+                        <td class="info-value">{{ student.academic_year }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Theory Subjects -->
+        {% if theory_subjects %}
+        <div class="marksheet-section">
+            <div class="subject-section-title theory-title">
+                <i class="bi bi-book me-2"></i>THEORY SUBJECTS
+            </div>
+            <table class="table table-bordered marksheet-subjects-table">
+                <thead class="theory-thead">
+                    <tr>
+                        <th width="5%">S.No.</th>
+                        <th width="12%">Subject Code</th>
+                        <th width="38%">Subject Name</th>
+                        <th width="12%">Max Marks</th>
+                        <th width="14%">Marks Obtained</th>
+                        <th width="10%">Grade</th>
+                        <th width="9%">Result</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for subject in theory_subjects %}
+                    <tr>
+                        <td class="text-center">{{ loop.index }}</td>
+                        <td class="text-center fw-semibold">{{ subject.subject_code }}</td>
+                        <td>{{ subject.subject_name }}</td>
+                        <td class="text-center">{{ subject.max_marks }}</td>
+                        <td class="text-center fw-bold">{{ subject.marks_obtained }}</td>
+                        <td class="text-center">
+                            <span class="grade-badge">{{ subject.grade or '—' }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="result-badge {{ 'result-pass' if subject.result == 'PASS' else 'result-fail' if subject.result == 'FAIL' else '' }}">
+                                {{ subject.result or '—' }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <!-- Theory Total Row -->
+                    <tr class="total-row">
+                        <td colspan="3" class="text-end fw-bold">Theory Total</td>
+                        <td class="text-center fw-bold">{{ theory_total_max }}</td>
+                        <td class="text-center fw-bold">{{ theory_total_obtained }}</td>
+                        <td colspan="2" class="text-center text-muted">—</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <!-- Practical Subjects -->
+        {% if practical_subjects %}
+        <div class="marksheet-section">
+            <div class="subject-section-title practical-title">
+                <i class="bi bi-wrench-adjustable me-2"></i>PRACTICAL SUBJECTS
+            </div>
+            <table class="table table-bordered marksheet-subjects-table">
+                <thead class="practical-thead">
+                    <tr>
+                        <th width="5%">S.No.</th>
+                        <th width="12%">Subject Code</th>
+                        <th width="38%">Subject Name</th>
+                        <th width="12%">Max Marks</th>
+                        <th width="14%">Marks Obtained</th>
+                        <th width="10%">Grade</th>
+                        <th width="9%">Result</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for subject in practical_subjects %}
+                    <tr>
+                        <td class="text-center">{{ loop.index }}</td>
+                        <td class="text-center fw-semibold">{{ subject.subject_code }}</td>
+                        <td>{{ subject.subject_name }}</td>
+                        <td class="text-center">{{ subject.max_marks }}</td>
+                        <td class="text-center fw-bold">{{ subject.marks_obtained }}</td>
+                        <td class="text-center">
+                            <span class="grade-badge">{{ subject.grade or '—' }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="result-badge {{ 'result-pass' if subject.result == 'PASS' else 'result-fail' if subject.result == 'FAIL' else '' }}">
+                                {{ subject.result or '—' }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <!-- Practical Total Row -->
+                    <tr class="total-row">
+                        <td colspan="3" class="text-end fw-bold">Practical Total</td>
+                        <td class="text-center fw-bold">{{ practical_total_max }}</td>
+                        <td class="text-center fw-bold">{{ practical_total_obtained }}</td>
+                        <td colspan="2" class="text-center text-muted">—</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <!-- Grand Summary -->
+        <div class="marksheet-section">
+            <div class="result-summary-table">
+                <table class="table table-bordered mb-0">
+                    <tbody>
+                        <tr>
+                            <th class="summary-label">Grand Total (Max)</th>
+                            <td class="summary-value fw-bold">{{ grand_total_max }}</td>
+                            <th class="summary-label">Total Marks Obtained</th>
+                            <td class="summary-value fw-bold">{{ grand_total_obtained }}</td>
+                        </tr>
+                        <tr>
+                            <th class="summary-label">Percentage</th>
+                            <td class="summary-value fw-bold">
+                                {% if grand_total_max > 0 %}
+                                    {{ "%.2f"|format(grand_total_obtained / grand_total_max * 100) }}%
+                                {% else %}N/A{% endif %}
+                            </td>
+                            <th class="summary-label">Division</th>
+                            <td class="summary-value fw-bold">
+                                {% if grand_total_max > 0 %}
+                                    {% set pct = grand_total_obtained / grand_total_max * 100 %}
+                                    {% if pct >= 60 %}First Division
+                                    {% elif pct >= 45 %}Second Division
+                                    {% elif pct >= 33 %}Third Division
+                                    {% else %}Fail{% endif %}
+                                {% else %}N/A{% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th class="summary-label">SGPA</th>
+                            <td class="summary-value fw-bold">{{ student.sgpa or 'N/A' }}</td>
+                            <th class="summary-label">CGPA (Till This Sem)</th>
+                            <td class="summary-value fw-bold">{{ student.cgpa or 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" class="text-center p-0">
+                                <div class="semester-result-box {% if student.semester_result == 'PASS' %}result-pass-box{% elif student.semester_result == 'FAIL' %}result-fail-box{% else %}result-neutral-box{% endif %}">
+                                    SEMESTER RESULT: <strong>{{ student.semester_result or 'N/A' }}</strong>
+                                </div>
+                            </td>
+                            <td colspan="2" class="text-center p-0">
+                                <div class="semester-result-box result-neutral-box">
+                                    Semester <strong>{{ student.semester }}</strong> | Year <strong>{{ student.academic_year }}</strong>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Signatures -->
+        <div class="marksheet-section signatures-section">
+            <div class="row text-center">
+                <div class="col-4">
+                    <div class="signature-line"></div>
+                    <div class="signature-label">Student's Signature</div>
+                </div>
+                <div class="col-4">
+                    <div class="signature-line"></div>
+                    <div class="signature-label">Examination Controller<br><small>KLP Roorkee</small></div>
+                </div>
+                <div class="col-4">
+                    <div class="signature-line"></div>
+                    <div class="signature-label">Principal<br><small>KLP Roorkee</small></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer note -->
+        <div class="marksheet-footer-note">
+            <i class="bi bi-info-circle me-1"></i>
+            This is a computer-generated statement. Official seal &amp; signature required for verification purposes.
+            For queries: <strong>info@klproorkee.edu.in</strong> | <strong>+91-1332-XXXXXX</strong>
+        </div>
+    </div>
+
+    <!-- Bottom actions -->
+    <div class="d-flex justify-content-between align-items-center mt-4 no-print">
+        <a href="{{ url_for('result.result_home') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Search Another
+        </a>
+        <div class="d-flex gap-2">
+            <button onclick="window.print()" class="btn btn-secondary">
+                <i class="bi bi-printer me-2"></i>Print Marksheet
+            </button>
+            <a href="{{ url_for('result.download_pdf', student_id=student.id) }}" class="btn btn-danger btn-lg fw-bold">
+                <i class="bi bi-file-earmark-pdf me-2"></i>Download PDF
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+================================================================================  END OF: templates/result_display.html  =====
+
+
+################################################################################
+#  FILE 12 of 18: templates/admin_login.html
+#  TYPE: HTML
+#  PURPOSE: Admin login form
+################################################################################
+
+{% extends "base.html" %}
+{% block title %}Admin Login — KLP Roorkee{% endblock %}
+
+{% block content %}
+<div class="admin-login-page min-vh-100 d-flex align-items-center justify-content-center py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-5 col-md-7 col-sm-10">
+
+                <div class="admin-login-card">
+                    <!-- Card Header -->
+                    <div class="admin-login-header text-center">
+                        <div class="admin-shield-icon">
+                            <i class="bi bi-shield-lock-fill"></i>
+                        </div>
+                        <h3 class="fw-bold text-white mt-3 mb-0">Admin Panel</h3>
+                        <p class="text-white-75 small mt-1">KLP Roorkee — Restricted Access</p>
+                    </div>
+
+                    <!-- Card Body -->
+                    <div class="admin-login-body">
+                        <p class="text-center text-muted mb-4">
+                            Enter your Admin ID and Password to access the student data management panel.
+                        </p>
+
+                        <form method="POST" action="{{ url_for('admin.login') }}">
+                            <!-- Admin ID -->
+                            <div class="mb-3">
+                                <label for="admin_id" class="form-label fw-semibold">Admin ID</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
+                                    <input
+                                        type="text"
+                                        class="form-control"
+                                        id="admin_id"
+                                        name="admin_id"
+                                        placeholder="Enter Admin ID"
+                                        required
+                                        autofocus
+                                    >
+                                </div>
+                            </div>
+
+                            <!-- Password -->
+                            <div class="mb-4">
+                                <label for="password" class="form-label fw-semibold">Password</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
+                                    <input
+                                        type="password"
+                                        class="form-control"
+                                        id="password"
+                                        name="password"
+                                        placeholder="Enter Password"
+                                        required
+                                    >
+                                    <button class="btn btn-outline-secondary" type="button" id="togglePassword" title="Show/Hide Password">
+                                        <i class="bi bi-eye" id="eyeIcon"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg fw-bold">
+                                    <i class="bi bi-box-arrow-in-right me-2"></i>Login to Admin Panel
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Security Notice -->
+                        <div class="admin-security-notice mt-4">
+                            <i class="bi bi-info-circle-fill text-warning me-2"></i>
+                            <small class="text-muted">This is a restricted area. Unauthorized access is prohibited. All login attempts are monitored.</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Back link -->
+                <div class="text-center mt-4">
+                    <a href="{{ url_for('main.home') }}" class="text-muted small">
+                        <i class="bi bi-arrow-left me-1"></i>Return to KLP Website
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Toggle password visibility
+    document.getElementById('togglePassword').addEventListener('click', function() {
+        const pwd = document.getElementById('password');
+        const icon = document.getElementById('eyeIcon');
+        if (pwd.type === 'password') {
+            pwd.type = 'text';
+            icon.className = 'bi bi-eye-slash';
+        } else {
+            pwd.type = 'password';
+            icon.className = 'bi bi-eye';
+        }
+    });
+</script>
+{% endblock %}
+
+================================================================================  END OF: templates/admin_login.html  =====
+
+
+################################################################################
+#  FILE 13 of 18: templates/admin_dashboard.html
+#  TYPE: HTML
+#  PURPOSE: Admin dashboard — all students table
+################################################################################
+
+{% extends "base.html" %}
+{% block title %}Admin Dashboard — KLP Roorkee{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-4">
+
+    <!-- Dashboard Header -->
+    <div class="admin-dashboard-header d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0"><i class="bi bi-shield-check me-2 text-primary"></i>Admin Dashboard</h3>
+            <p class="text-muted mb-0 small">KLP Roorkee — Student Result Management System</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('admin.add_student') }}" class="btn btn-primary">
+                <i class="bi bi-person-plus me-2"></i>Add Student
+            </a>
+            <a href="{{ url_for('admin.logout') }}" class="btn btn-outline-danger">
+                <i class="bi bi-box-arrow-right me-2"></i>Logout
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="admin-stat-card bg-primary text-white">
+                <div class="admin-stat-icon"><i class="bi bi-people-fill"></i></div>
+                <div class="admin-stat-num">{{ total_students }}</div>
+                <div class="admin-stat-label">Total Students</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="admin-stat-card bg-success text-white">
+                <div class="admin-stat-icon"><i class="bi bi-check-circle-fill"></i></div>
+                <div class="admin-stat-num">{{ students | selectattr('semester_result', 'equalto', 'PASS') | list | length }}</div>
+                <div class="admin-stat-label">Passed</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="admin-stat-card bg-danger text-white">
+                <div class="admin-stat-icon"><i class="bi bi-x-circle-fill"></i></div>
+                <div class="admin-stat-num">{{ students | selectattr('semester_result', 'equalto', 'FAIL') | list | length }}</div>
+                <div class="admin-stat-label">Failed</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="admin-stat-card bg-warning text-dark">
+                <div class="admin-stat-icon"><i class="bi bi-building"></i></div>
+                <div class="admin-stat-num">6</div>
+                <div class="admin-stat-label">Departments</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-4 col-md-6">
+            <a href="{{ url_for('admin.add_student') }}" class="admin-quick-action-card text-decoration-none">
+                <i class="bi bi-person-plus-fill fs-2 text-primary mb-2"></i>
+                <h6 class="fw-bold">Add New Student</h6>
+                <p class="text-muted small mb-0">Register a new student and enter their result data</p>
+            </a>
+        </div>
+        <div class="col-lg-4 col-md-6">
+            <a href="{{ url_for('result.result_home') }}" target="_blank" class="admin-quick-action-card text-decoration-none">
+                <i class="bi bi-eye-fill fs-2 text-success mb-2"></i>
+                <h6 class="fw-bold">View Result Portal</h6>
+                <p class="text-muted small mb-0">See the student-facing result search page</p>
+            </a>
+        </div>
+        <div class="col-lg-4 col-md-6">
+            <a href="{{ url_for('main.home') }}" target="_blank" class="admin-quick-action-card text-decoration-none">
+                <i class="bi bi-house-fill fs-2 text-warning mb-2"></i>
+                <h6 class="fw-bold">View Website</h6>
+                <p class="text-muted small mb-0">Open the public-facing college website</p>
+            </a>
+        </div>
+    </div>
+
+    <!-- Students Table -->
+    <div class="admin-table-card">
+        <div class="admin-table-header d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0"><i class="bi bi-table me-2"></i>All Students</h5>
+            <div class="d-flex gap-2 align-items-center">
+                <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="Search students..." style="width: 220px;">
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="studentsTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Roll Number</th>
+                        <th>Enrollment No.</th>
+                        <th>Branch</th>
+                        <th>Semester</th>
+                        <th>SGPA</th>
+                        <th>Result</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in students %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td class="fw-semibold">{{ student.name }}</td>
+                        <td><code>{{ student.roll_number }}</code></td>
+                        <td><code>{{ student.enrollment_no }}</code></td>
+                        <td>{{ student.branch }}</td>
+                        <td>Sem {{ student.semester }}</td>
+                        <td>{{ student.sgpa or '—' }}</td>
+                        <td>
+                            {% if student.semester_result == 'PASS' %}
+                                <span class="badge bg-success">PASS</span>
+                            {% elif student.semester_result == 'FAIL' %}
+                                <span class="badge bg-danger">FAIL</span>
+                            {% elif student.semester_result == 'BACKLOG' %}
+                                <span class="badge bg-warning text-dark">BACKLOG</span>
+                            {% else %}
+                                <span class="badge bg-secondary">N/A</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex gap-1">
+                                <a href="{{ url_for('admin.view_student', student_id=student.id) }}"
+                                   class="btn btn-sm btn-outline-primary" title="View Detail">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="{{ url_for('admin.add_subjects', student_id=student.id) }}"
+                                   class="btn btn-sm btn-outline-success" title="Add Subjects">
+                                    <i class="bi bi-plus-circle"></i>
+                                </a>
+                                <a href="{{ url_for('admin.edit_student', student_id=student.id) }}"
+                                   class="btn btn-sm btn-outline-warning" title="Edit Student">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <a href="{{ url_for('result.show_result', student_id=student.id) }}"
+                                   class="btn btn-sm btn-outline-info" title="View Result" target="_blank">
+                                    <i class="bi bi-award"></i>
+                                </a>
+                                <form method="POST" action="{{ url_for('admin.delete_student', student_id=student.id) }}"
+                                      class="d-inline" onsubmit="return confirm('Delete {{ student.name }} and ALL their data? This cannot be undone.');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Student">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                            No students added yet. <a href="{{ url_for('admin.add_student') }}">Add the first student</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Simple live search/filter for the students table
+    document.getElementById('searchInput').addEventListener('input', function() {
+        const query = this.value.toLowerCase();
+        const rows = document.querySelectorAll('#studentsTable tbody tr');
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(query) ? '' : 'none';
+        });
+    });
+</script>
+{% endblock %}
+
+================================================================================  END OF: templates/admin_dashboard.html  =====
+
+
+################################################################################
+#  FILE 14 of 18: templates/admin_add_student.html
+#  TYPE: HTML
+#  PURPOSE: Add or edit student form
+################################################################################
+
+{% extends "base.html" %}
+{% block title %}{{ 'Edit Student' if editing else 'Add Student' }} — Admin | KLP Roorkee{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+
+            <!-- Breadcrumb -->
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Admin Dashboard</a></li>
+                    <li class="breadcrumb-item active">{{ 'Edit Student' if editing else 'Add New Student' }}</li>
+                </ol>
+            </nav>
+
+            <div class="admin-form-card">
+                <div class="admin-form-header">
+                    <h4 class="mb-0">
+                        <i class="bi bi-{{ 'pencil-square' if editing else 'person-plus' }} me-2"></i>
+                        {{ 'Edit Student Details' if editing else 'Add New Student' }}
+                    </h4>
+                    <p class="text-white-75 small mb-0 mt-1">
+                        {% if editing %}Update the student's information below.{% else %}Fill in the student's personal and academic details. You'll add subjects on the next step.{% endif %}
+                    </p>
+                </div>
+                <div class="admin-form-body">
+                    <form method="POST" action="{{ url_for('admin.edit_student', student_id=student.id) if editing else url_for('admin.add_student') }}">
+
+                        <div class="form-section-title">Personal Information</div>
+
+                        <div class="row g-3 mb-4">
+                            <!-- Student Name -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold required-field">Student Full Name</label>
+                                <input type="text" class="form-control" name="name"
+                                       value="{{ student.name if editing else '' }}"
+                                       placeholder="e.g. Ram Kumar Sharma" required>
+                            </div>
+                            <!-- Father's Name -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold required-field">Father's Name</label>
+                                <input type="text" class="form-control" name="father_name"
+                                       value="{{ student.father_name if editing else '' }}"
+                                       placeholder="e.g. Shri Rajesh Kumar Sharma" required>
+                            </div>
+
+                            <!-- Roll Number -->
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold required-field">Roll Number</label>
+                                <input type="text" class="form-control" name="roll_number"
+                                       value="{{ student.roll_number if editing else '' }}"
+                                       placeholder="e.g. 2301001" required>
+                                <div class="form-text">Unique exam roll number</div>
+                            </div>
+                            <!-- Enrollment Number -->
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold required-field">Enrollment Number</label>
+                                <input type="text" class="form-control" name="enrollment_no"
+                                       value="{{ student.enrollment_no if editing else '' }}"
+                                       placeholder="e.g. ENR2301001" required>
+                                <div class="form-text">College enrollment/registration number</div>
+                            </div>
+                            <!-- Category -->
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold required-field">Category</label>
+                                <select class="form-select" name="category" required>
+                                    <option value="" disabled {% if not editing %}selected{% endif %}>Select Category</option>
+                                    {% for cat in ['GEN', 'OBC', 'SC', 'ST', 'EWS', 'OBC-NCL'] %}
+                                    <option value="{{ cat }}" {% if editing and student.category == cat %}selected{% endif %}>{{ cat }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-section-title">Academic Information</div>
+
+                        <div class="row g-3 mb-4">
+                            <!-- Branch -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold required-field">Branch / Department</label>
+                                <select class="form-select" name="branch" required>
+                                    <option value="" disabled {% if not editing %}selected{% endif %}>Select Branch</option>
+                                    {% for branch in [
+                                        'Civil Engineering',
+                                        'Mechanical Engineering',
+                                        'Electrical Engineering',
+                                        'Electronics Engineering',
+                                        'AI & Machine Learning',
+                                        'Computer Communication & Networking'
+                                    ] %}
+                                    <option value="{{ branch }}" {% if editing and student.branch == branch %}selected{% endif %}>{{ branch }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <!-- Semester -->
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold required-field">Semester</label>
+                                <select class="form-select" name="semester" required>
+                                    <option value="" disabled {% if not editing %}selected{% endif %}>Select</option>
+                                    {% for sem in range(1, 7) %}
+                                    <option value="{{ sem }}" {% if editing and student.semester == sem %}selected{% endif %}>Semester {{ sem }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <!-- Academic Year -->
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold required-field">Academic Year</label>
+                                <input type="text" class="form-control" name="academic_year"
+                                       value="{{ student.academic_year if editing else '' }}"
+                                       placeholder="e.g. 2023-2024" required>
+                            </div>
+
+                            <!-- Institution -->
+                            <div class="col-md-12">
+                                <label class="form-label fw-semibold required-field">Institution Name</label>
+                                <input type="text" class="form-control" name="institution"
+                                       value="{{ student.institution if editing else 'Kanhaiya Lal Polytechnic Roorkee' }}"
+                                       placeholder="Institution name" required>
+                            </div>
+                        </div>
+
+                        <div class="form-section-title">Result Summary <span class="text-muted small fw-normal">(Optional — can be filled after adding subjects)</span></div>
+
+                        <div class="row g-3 mb-4">
+                            <!-- SGPA -->
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">SGPA</label>
+                                <input type="number" class="form-control" name="sgpa" step="0.01" min="0" max="10"
+                                       value="{{ student.sgpa if editing and student.sgpa else '' }}"
+                                       placeholder="e.g. 7.85">
+                                <div class="form-text">Semester GPA (0.00 – 10.00)</div>
+                            </div>
+                            <!-- CGPA -->
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">CGPA</label>
+                                <input type="number" class="form-control" name="cgpa" step="0.01" min="0" max="10"
+                                       value="{{ student.cgpa if editing and student.cgpa else '' }}"
+                                       placeholder="e.g. 7.62">
+                                <div class="form-text">Cumulative GPA (0.00 – 10.00)</div>
+                            </div>
+                            <!-- Semester Result -->
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Semester Result</label>
+                                <select class="form-select" name="semester_result">
+                                    <option value="">-- Select Result --</option>
+                                    {% for res in ['PASS', 'FAIL', 'BACKLOG', 'WITHHELD'] %}
+                                    <option value="{{ res }}" {% if editing and student.semester_result == res %}selected{% endif %}>{{ res }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Buttons -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-x-circle me-2"></i>Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-lg px-5 fw-bold">
+                                {% if editing %}
+                                    <i class="bi bi-check-circle me-2"></i>Save Changes
+                                {% else %}
+                                    <i class="bi bi-arrow-right-circle me-2"></i>Save &amp; Add Subjects
+                                {% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+================================================================================  END OF: templates/admin_add_student.html  =====
+
+
+################################################################################
+#  FILE 15 of 18: templates/admin_add_subjects.html
+#  TYPE: HTML
+#  PURPOSE: Dynamic add-subjects form (unlimited rows)
+################################################################################
+
+{% extends "base.html" %}
+{% block title %}Add Subjects — {{ student.name }} | Admin | KLP Roorkee{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-11">
+
+            <!-- Breadcrumb -->
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('admin.view_student', student_id=student.id) }}">{{ student.name }}</a></li>
+                    <li class="breadcrumb-item active">Add Subjects</li>
+                </ol>
+            </nav>
+
+            <!-- Student Info Banner -->
+            <div class="student-info-banner mb-4">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <div class="student-avatar">{{ student.name[0] }}</div>
+                    </div>
+                    <div class="col">
+                        <h5 class="mb-1 text-white fw-bold">{{ student.name }}</h5>
+                        <div class="text-white-75 small">
+                            <span class="me-3"><i class="bi bi-person-badge me-1"></i>Roll: <strong>{{ student.roll_number }}</strong></span>
+                            <span class="me-3"><i class="bi bi-building me-1"></i>{{ student.branch }}</span>
+                            <span><i class="bi bi-calendar me-1"></i>Semester {{ student.semester }} | {{ student.academic_year }}</span>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <span class="badge bg-warning text-dark fs-6 px-3 py-2">Sem {{ student.semester }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Form Card -->
+            <div class="admin-form-card">
+                <div class="admin-form-header">
+                    <h4 class="mb-0"><i class="bi bi-journal-plus me-2"></i>Add Subjects &amp; Marks</h4>
+                    <p class="text-white-75 small mb-0 mt-1">
+                        Add all theory and practical subjects. Use the buttons below to add more rows — there is no limit.
+                    </p>
+                </div>
+                <div class="admin-form-body">
+
+                    <!-- Existing subjects (read-only reference) -->
+                    {% if existing_subjects %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>{{ existing_subjects|length }} subject(s) already added.</strong>
+                        New subjects from this form will be <strong>appended</strong> to the existing ones.
+                        <a href="{{ url_for('admin.view_student', student_id=student.id) }}" class="alert-link ms-2">
+                            View existing subjects &rarr;
+                        </a>
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="{{ url_for('admin.add_subjects', student_id=student.id) }}">
+
+                        <!-- ── Theory Subjects ─────────────────────────── -->
+                        <div class="subject-section mb-4">
+                            <div class="subject-section-header theory-bg">
+                                <i class="bi bi-book me-2"></i>Theory Subjects
+                                <button type="button" class="btn btn-sm btn-light ms-3" onclick="addRow('theory')">
+                                    <i class="bi bi-plus-circle me-1"></i>Add Theory Subject
+                                </button>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table table-bordered mb-0" id="theoryTable">
+                                    <thead class="table-primary">
+                                        <tr>
+                                            <th width="5%">#</th>
+                                            <th width="12%">Subject Code</th>
+                                            <th width="30%">Subject Name *</th>
+                                            <th width="10%">Max Marks</th>
+                                            <th width="12%">Marks Obtained</th>
+                                            <th width="10%">Grade</th>
+                                            <th width="10%">Result</th>
+                                            <th width="6%" class="text-center">Del</th>
+                                            <!-- Hidden type field per row -->
+                                        </tr>
+                                    </thead>
+                                    <tbody id="theoryBody">
+                                        <!-- Default 5 theory rows -->
+                                        <tr class="subject-row">
+                                            <td class="row-num text-center text-muted">1</td>
+                                            <td><input type="text" class="form-control form-control-sm" name="subject_code" placeholder="e.g. ME-101"></td>
+                                            <td><input type="text" class="form-control form-control-sm" name="subject_name" placeholder="Mathematics - I"></td>
+                                            <td><input type="number" class="form-control form-control-sm" name="max_marks" value="100" min="0" max="1000"></td>
+                                            <td><input type="number" class="form-control form-control-sm" name="marks_obtained" value="" min="0" max="1000" placeholder="0"></td>
+                                            <td>
+                                                <select class="form-select form-select-sm" name="grade">
+                                                    <option value="">—</option>
+                                                    <option>O</option><option>A+</option><option>A</option>
+                                                    <option>B+</option><option>B</option><option>C</option>
+                                                    <option>D</option><option>F</option>
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <select class="form-select form-select-sm" name="result">
+                                                    <option value="">—</option>
+                                                    <option>PASS</option><option>FAIL</option>
+                                                </select>
+                                            </td>
+                                            <td class="text-center"><input type="hidden" name="subject_type" value="Theory"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRow(this)"><i class="bi bi-trash"></i></button></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="addRow('theory')">
+                                    <i class="bi bi-plus-circle me-1"></i>Add Another Theory Subject
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- ── Practical Subjects ──────────────────────── -->
+                        <div class="subject-section mb-4">
+                            <div class="subject-section-header practical-bg">
+                                <i class="bi bi-wrench-adjustable me-2"></i>Practical Subjects
+                                <button type="button" class="btn btn-sm btn-light ms-3" onclick="addRow('practical')">
+                                    <i class="bi bi-plus-circle me-1"></i>Add Practical Subject
+                                </button>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table table-bordered mb-0" id="practicalTable">
+                                    <thead class="table-success">
+                                        <tr>
+                                            <th width="5%">#</th>
+                                            <th width="12%">Subject Code</th>
+                                            <th width="30%">Subject Name *</th>
+                                            <th width="10%">Max Marks</th>
+                                            <th width="12%">Marks Obtained</th>
+                                            <th width="10%">Grade</th>
+                                            <th width="10%">Result</th>
+                                            <th width="6%" class="text-center">Del</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="practicalBody">
+                                        <tr class="subject-row">
+                                            <td class="row-num text-center text-muted">1</td>
+                                            <td><input type="text" class="form-control form-control-sm" name="subject_code" placeholder="e.g. ME-101P"></td>
+                                            <td><input type="text" class="form-control form-control-sm" name="subject_name" placeholder="Engineering Drawing Lab"></td>
+                                            <td><input type="number" class="form-control form-control-sm" name="max_marks" value="50" min="0" max="1000"></td>
+                                            <td><input type="number" class="form-control form-control-sm" name="marks_obtained" value="" min="0" max="1000" placeholder="0"></td>
+                                            <td>
+                                                <select class="form-select form-select-sm" name="grade">
+                                                    <option value="">—</option>
+                                                    <option>O</option><option>A+</option><option>A</option>
+                                                    <option>B+</option><option>B</option><option>C</option>
+                                                    <option>D</option><option>F</option>
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <select class="form-select form-select-sm" name="result">
+                                                    <option value="">—</option>
+                                                    <option>PASS</option><option>FAIL</option>
+                                                </select>
+                                            </td>
+                                            <td class="text-center"><input type="hidden" name="subject_type" value="Practical"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRow(this)"><i class="bi bi-trash"></i></button></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-outline-success btn-sm" onclick="addRow('practical')">
+                                    <i class="bi bi-plus-circle me-1"></i>Add Another Practical Subject
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Grade Legend -->
+                        <div class="alert alert-light border mb-4">
+                            <strong><i class="bi bi-info-circle me-1"></i>Grade Scale:</strong>
+                            O (Outstanding ≥90) | A+ (≥80) | A (≥70) | B+ (≥60) | B (≥50) | C (≥40) | D (≥33) | F (Fail &lt;33)
+                        </div>
+
+                        <!-- Submit -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('admin.view_student', student_id=student.id) }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left me-2"></i>Skip / Back
+                            </a>
+                            <button type="submit" class="btn btn-success btn-lg px-5 fw-bold">
+                                <i class="bi bi-check-circle me-2"></i>Save All Subjects
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* Dynamically add/remove subject rows */
+
+// Template HTML for a new theory row
+function makeRow(type, num) {
+    const gradeOpts = `<option value="">—</option><option>O</option><option>A+</option><option>A</option><option>B+</option><option>B</option><option>C</option><option>D</option><option>F</option>`;
+    const maxDefault = type === 'Theory' ? 100 : 50;
+    const codePlaceholder = type === 'Theory' ? 'e.g. ME-101' : 'e.g. ME-101P';
+    return `<tr class="subject-row">
+        <td class="row-num text-center text-muted">${num}</td>
+        <td><input type="text" class="form-control form-control-sm" name="subject_code" placeholder="${codePlaceholder}"></td>
+        <td><input type="text" class="form-control form-control-sm" name="subject_name" placeholder="Subject Name"></td>
+        <td><input type="number" class="form-control form-control-sm" name="max_marks" value="${maxDefault}" min="0" max="1000"></td>
+        <td><input type="number" class="form-control form-control-sm" name="marks_obtained" value="" min="0" max="1000" placeholder="0"></td>
+        <td><select class="form-select form-select-sm" name="grade">${gradeOpts}</select></td>
+        <td><select class="form-select form-select-sm" name="result"><option value="">—</option><option>PASS</option><option>FAIL</option></select></td>
+        <td class="text-center"><input type="hidden" name="subject_type" value="${type}"><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeRow(this)"><i class="bi bi-trash"></i></button></td>
+    </tr>`;
+}
+
+// Add a new row to the correct table
+function addRow(type) {
+    const tbody = document.getElementById(type === 'theory' ? 'theoryBody' : 'practicalBody');
+    const num = tbody.querySelectorAll('tr.subject-row').length + 1;
+    const typeCap = type === 'theory' ? 'Theory' : 'Practical';
+    tbody.insertAdjacentHTML('beforeend', makeRow(typeCap, num));
+    // Renumber
+    renumber(tbody);
+}
+
+// Remove a row and renumber
+function removeRow(btn) {
+    const row = btn.closest('tr');
+    const tbody = row.closest('tbody');
+    row.remove();
+    renumber(tbody);
+}
+
+// Renumber all rows in a tbody
+function renumber(tbody) {
+    tbody.querySelectorAll('tr.subject-row').forEach((row, i) => {
+        const numCell = row.querySelector('.row-num');
+        if (numCell) numCell.textContent = i + 1;
+    });
+}
+</script>
+{% endblock %}
+
+================================================================================  END OF: templates/admin_add_subjects.html  =====
+
+
+################################################################################
+#  FILE 16 of 18: templates/admin_view_student.html
+#  TYPE: HTML
+#  PURPOSE: View one student with all subjects
+################################################################################
+
+{% extends "base.html" %}
+{% block title %}{{ student.name }} — Admin | KLP Roorkee{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+    <!-- Header Actions -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></li>
+                    <li class="breadcrumb-item active">{{ student.name }}</li>
+                </ol>
+            </nav>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('admin.add_subjects', student_id=student.id) }}" class="btn btn-success">
+                <i class="bi bi-plus-circle me-2"></i>Add Subjects
+            </a>
+            <a href="{{ url_for('admin.edit_student', student_id=student.id) }}" class="btn btn-warning">
+                <i class="bi bi-pencil me-2"></i>Edit
+            </a>
+            <a href="{{ url_for('result.show_result', student_id=student.id) }}" target="_blank" class="btn btn-primary">
+                <i class="bi bi-award me-2"></i>View Result
+            </a>
+            <a href="{{ url_for('result.download_pdf', student_id=student.id) }}" class="btn btn-danger">
+                <i class="bi bi-file-earmark-pdf me-2"></i>Download PDF
+            </a>
+            <form method="POST" action="{{ url_for('admin.delete_student', student_id=student.id) }}"
+                  onsubmit="return confirm('Permanently delete {{ student.name }}? This cannot be undone.');">
+                <button type="submit" class="btn btn-outline-danger">
+                    <i class="bi bi-trash me-2"></i>Delete
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Student Info Card -->
+    <div class="admin-form-card mb-4">
+        <div class="admin-form-header">
+            <div class="d-flex align-items-center gap-3">
+                <div class="student-avatar">{{ student.name[0] }}</div>
+                <div>
+                    <h4 class="mb-0 text-white fw-bold">{{ student.name }}</h4>
+                    <div class="text-white-75 small">Roll: {{ student.roll_number }} | Enr: {{ student.enrollment_no }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="admin-form-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <div class="info-pair">
+                        <div class="info-pair-label">Father's Name</div>
+                        <div class="info-pair-value">{{ student.father_name }}</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="info-pair">
+                        <div class="info-pair-label">Branch</div>
+                        <div class="info-pair-value">{{ student.branch }}</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="info-pair">
+                        <div class="info-pair-label">Semester</div>
+                        <div class="info-pair-value">Semester {{ student.semester }}</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="info-pair">
+                        <div class="info-pair-label">Category</div>
+                        <div class="info-pair-value">{{ student.category }}</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="info-pair">
+                        <div class="info-pair-label">Academic Year</div>
+                        <div class="info-pair-value">{{ student.academic_year }}</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="info-pair">
+                        <div class="info-pair-label">SGPA</div>
+                        <div class="info-pair-value fw-bold text-primary">{{ student.sgpa or 'N/A' }}</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="info-pair">
+                        <div class="info-pair-label">CGPA</div>
+                        <div class="info-pair-value fw-bold text-primary">{{ student.cgpa or 'N/A' }}</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="info-pair">
+                        <div class="info-pair-label">Semester Result</div>
+                        <div class="info-pair-value">
+                            {% if student.semester_result == 'PASS' %}
+                                <span class="badge bg-success fs-6">PASS</span>
+                            {% elif student.semester_result == 'FAIL' %}
+                                <span class="badge bg-danger fs-6">FAIL</span>
+                            {% else %}
+                                <span class="badge bg-secondary fs-6">{{ student.semester_result or 'N/A' }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <div class="info-pair">
+                        <div class="info-pair-label">Institution</div>
+                        <div class="info-pair-value">{{ student.institution }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Theory Subjects -->
+    {% if theory_subjects %}
+    <div class="admin-table-card mb-4">
+        <div class="admin-table-header" style="background: #1a237e;">
+            <h5 class="fw-bold mb-0 text-white"><i class="bi bi-book me-2"></i>Theory Subjects ({{ theory_subjects|length }})</h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-bordered mb-0">
+                <thead class="table-primary">
+                    <tr>
+                        <th>#</th><th>Code</th><th>Subject Name</th><th>Max</th><th>Obtained</th><th>Grade</th><th>Result</th><th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in theory_subjects %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td><code>{{ s.subject_code }}</code></td>
+                        <td>{{ s.subject_name }}</td>
+                        <td class="text-center">{{ s.max_marks }}</td>
+                        <td class="text-center fw-bold">{{ s.marks_obtained }}</td>
+                        <td class="text-center">{{ s.grade or '—' }}</td>
+                        <td class="text-center">
+                            <span class="badge {{ 'bg-success' if s.result == 'PASS' else 'bg-danger' if s.result == 'FAIL' else 'bg-secondary' }}">{{ s.result or '—' }}</span>
+                        </td>
+                        <td>
+                            <form method="POST" action="{{ url_for('admin.delete_subject', subject_id=s.id) }}"
+                                  onsubmit="return confirm('Delete subject {{ s.subject_name }}?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-secondary fw-bold">
+                    <tr>
+                        <td colspan="3" class="text-end">Theory Total:</td>
+                        <td class="text-center">{{ theory_subjects | sum(attribute='max_marks') }}</td>
+                        <td class="text-center">{{ theory_subjects | sum(attribute='marks_obtained') }}</td>
+                        <td colspan="3"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Practical Subjects -->
+    {% if practical_subjects %}
+    <div class="admin-table-card mb-4">
+        <div class="admin-table-header" style="background: #1b5e20;">
+            <h5 class="fw-bold mb-0 text-white"><i class="bi bi-wrench-adjustable me-2"></i>Practical Subjects ({{ practical_subjects|length }})</h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-bordered mb-0">
+                <thead class="table-success">
+                    <tr>
+                        <th>#</th><th>Code</th><th>Subject Name</th><th>Max</th><th>Obtained</th><th>Grade</th><th>Result</th><th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in practical_subjects %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td><code>{{ s.subject_code }}</code></td>
+                        <td>{{ s.subject_name }}</td>
+                        <td class="text-center">{{ s.max_marks }}</td>
+                        <td class="text-center fw-bold">{{ s.marks_obtained }}</td>
+                        <td class="text-center">{{ s.grade or '—' }}</td>
+                        <td class="text-center">
+                            <span class="badge {{ 'bg-success' if s.result == 'PASS' else 'bg-danger' if s.result == 'FAIL' else 'bg-secondary' }}">{{ s.result or '—' }}</span>
+                        </td>
+                        <td>
+                            <form method="POST" action="{{ url_for('admin.delete_subject', subject_id=s.id) }}"
+                                  onsubmit="return confirm('Delete subject {{ s.subject_name }}?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-secondary fw-bold">
+                    <tr>
+                        <td colspan="3" class="text-end">Practical Total:</td>
+                        <td class="text-center">{{ practical_subjects | sum(attribute='max_marks') }}</td>
+                        <td class="text-center">{{ practical_subjects | sum(attribute='marks_obtained') }}</td>
+                        <td colspan="3"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not theory_subjects and not practical_subjects %}
+    <div class="text-center py-5">
+        <i class="bi bi-journal-x fs-1 text-muted d-block mb-2"></i>
+        <p class="text-muted">No subjects added yet.</p>
+        <a href="{{ url_for('admin.add_subjects', student_id=student.id) }}" class="btn btn-success">
+            <i class="bi bi-plus-circle me-2"></i>Add Subjects Now
+        </a>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
+
+================================================================================  END OF: templates/admin_view_student.html  =====
+
+
+################################################################################
+#  FILE 17 of 18: static/css/style.css
+#  TYPE: CSS
+#  PURPOSE: All page styling — hero, cards, marksheet, admin
+################################################################################
+
+/* ═══════════════════════════════════════════════════════
+   KLP ROORKEE — Main Stylesheet
+   Kanhaiya Lal Polytechnic Roorkee
+═══════════════════════════════════════════════════════ */
+
+/* ── Root Variables ───────────────────────────────── */
+:root {
+    --klp-navy:   #1a237e;
+    --klp-blue:   #283593;
+    --klp-gold:   #ffc107;
+    --klp-dark:   #0d1117;
+    --klp-light:  #f4f6fb;
+    --klp-green:  #1b5e20;
+    --klp-red:    #c62828;
+    --font-main:  'Poppins', sans-serif;
+}
+
+/* ── Global Base ──────────────────────────────────── */
+* { box-sizing: border-box; }
+body {
+    font-family: var(--font-main);
+    background: #f8f9fc;
+    color: #2c2c2c;
+}
+html { scroll-behavior: smooth; }
+
+/* ── Navigation ───────────────────────────────────── */
+#mainNav {
+    background: linear-gradient(135deg, var(--klp-navy) 0%, var(--klp-blue) 100%);
+    box-shadow: 0 2px 20px rgba(0,0,0,0.3);
+    padding: 8px 0;
+}
+.nav-logo-circle {
+    width: 44px; height: 44px;
+    background: var(--klp-gold);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 15px; color: var(--klp-navy);
+    border: 2px solid rgba(255,255,255,0.3);
+    flex-shrink: 0;
+}
+.nav-college-name { font-size: 15px; font-weight: 700; line-height: 1.2; color: #fff; }
+.nav-college-sub  { font-size: 10px; color: rgba(255,255,255,0.7); line-height: 1; }
+.navbar-nav .nav-link {
+    color: rgba(255,255,255,0.85) !important;
+    font-weight: 500; font-size: 14px; padding: 6px 12px;
+    border-radius: 6px; transition: all 0.2s;
+}
+.navbar-nav .nav-link:hover {
+    color: #fff !important; background: rgba(255,255,255,0.12);
+}
+
+/* ── Hero Section ─────────────────────────────────── */
+.klp-hero {
+    background: linear-gradient(135deg, #0a0f3d 0%, #1a237e 40%, #1565c0 100%);
+    position: relative; overflow: hidden; min-height: 85vh;
+    display: flex; align-items: center;
+}
+.klp-hero::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+.hero-overlay {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, rgba(255,193,7,0.08) 0%, transparent 70%);
+}
+.min-vh-75 { min-height: 75vh; }
+.hero-title {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 900; letter-spacing: -1px; line-height: 1.1;
+    text-shadow: 2px 4px 12px rgba(0,0,0,0.4);
+}
+.hero-subtitle {
+    font-size: clamp(1.3rem, 3vw, 2rem);
+    font-weight: 700; letter-spacing: 2px; margin: 0;
+}
+.hero-tagline {
+    font-size: 1rem; color: rgba(255,255,255,0.8); line-height: 1.7;
+}
+.hero-estd { font-size: 12px; letter-spacing: 1px; }
+
+/* Navbar logo image */
+.nav-logo-img {
+    height: 42px; width: 42px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    border-radius: 4px;
+}
+
+/* Founder Frame — real photo */
+.founder-frame {
+    width: 190px; height: 210px;
+    border: 4px solid var(--klp-gold);
+    border-radius: 50%;
+    overflow: hidden;
+    background: rgba(255,255,255,0.05);
+    box-shadow: 0 0 0 6px rgba(255,193,7,0.25), 0 8px 32px rgba(0,0,0,0.4);
+    display: flex; align-items: center; justify-content: center;
+}
+.founder-photo {
+    width: 100%; height: 100%;
+    object-fit: cover; object-position: center top;
+    display: block;
+}
+
+/* KLP College Logo (hero right side) */
+.klp-logo-img-wrap {
+    width: 200px; height: 220px;
+    display: flex; align-items: center; justify-content: center;
+    filter: drop-shadow(0 8px 24px rgba(0,0,0,0.5));
+}
+.klp-logo-img {
+    width: 100%; height: 100%;
+    object-fit: contain;
+    animation: logoFloat 4s ease-in-out infinite;
+}
+@keyframes logoFloat {
+    0%, 100% { transform: translateY(0px); }
+    50%       { transform: translateY(-8px); }
+}
+
+/* Hero scroll down */
+.hero-scroll-down {
+    position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+    animation: bounce 2s infinite;
+}
+.scroll-arrow { font-size: 1.6rem; }
+@keyframes bounce {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(-10px); }
+}
+
+/* ── Stats Bar ────────────────────────────────────── */
+.stats-bar {
+    background: var(--klp-navy);
+    color: white;
+}
+.stat-item {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 8px 0;
+}
+.stat-num {
+    font-size: 2rem; font-weight: 800; color: var(--klp-gold); line-height: 1;
+}
+.stat-label { font-size: 12px; color: rgba(255,255,255,0.7); margin-top: 2px; }
+
+/* ── Section Header ───────────────────────────────── */
+.section-badge {
+    display: inline-block; background: rgba(26,35,126,0.1);
+    color: var(--klp-navy); border: 1px solid rgba(26,35,126,0.2);
+    padding: 4px 16px; border-radius: 20px; font-size: 12px;
+    font-weight: 600; text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 12px;
+}
+.section-badge-light {
+    display: inline-block; background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.9); border: 1px solid rgba(255,255,255,0.2);
+    padding: 4px 16px; border-radius: 20px; font-size: 12px;
+    font-weight: 600; text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 12px;
+}
+.section-title { font-size: 2rem; font-weight: 800; letter-spacing: -0.5px; }
+.section-divider {
+    width: 60px; height: 4px; background: var(--klp-navy);
+    border-radius: 2px; margin: 16px auto 0;
+}
+
+/* ── About Section ────────────────────────────────── */
+.about-feature {
+    padding: 8px 14px; background: #f8f9fc;
+    border-radius: 8px; font-size: 14px; font-weight: 500;
+    border: 1px solid #e8eaed;
+}
+.vision-card {
+    background: white; border-radius: 12px; padding: 20px;
+    border: 1px solid #e8eaed;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.vision-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
+.vision-icon {
+    width: 48px; height: 48px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+
+/* ── Department Cards ─────────────────────────────── */
+.dept-card {
+    background: white; border-radius: 16px; padding: 28px 24px;
+    border: 1px solid #e8eaed;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    transition: all 0.3s ease; text-align: center;
+    position: relative; overflow: hidden;
+}
+.dept-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    background: linear-gradient(90deg, var(--klp-navy), var(--klp-gold));
+}
+.dept-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 16px 40px rgba(26,35,126,0.15);
+    border-color: var(--klp-navy);
+}
+.dept-icon-wrap { margin-bottom: 12px; }
+.dept-icon { font-size: 3rem; }
+.dept-code {
+    font-size: 11px; font-weight: 700; letter-spacing: 2px;
+    color: var(--klp-navy); text-transform: uppercase; margin-bottom: 6px;
+}
+.dept-name { font-size: 1.1rem; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
+.dept-desc { color: #6b7280; font-size: 14px; margin-bottom: 16px; }
+.dept-meta { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; }
+
+/* ── Course Cards ─────────────────────────────────── */
+.course-card {
+    background: white; border-radius: 12px; overflow: hidden;
+    border: 1px solid #e8eaed;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    height: 100%;
+}
+.course-header { padding: 16px 20px; }
+.course-body { padding: 20px; }
+.course-list {
+    padding-left: 20px; margin-bottom: 0;
+    color: #4b5563; font-size: 14px;
+}
+.course-list li { margin-bottom: 6px; }
+.info-highlight-card {
+    background: white; border-radius: 12px; padding: 20px;
+    border-left: 4px solid; height: 100%;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+.info-highlight-card h6 { margin-bottom: 12px; }
+.info-highlight-card li { margin-bottom: 5px; font-size: 13px; }
+
+/* ── Sports Section ───────────────────────────────── */
+.sports-section { background: linear-gradient(135deg, #1a237e 0%, #0d47a1 100%); color: white; }
+.sports-section .section-title { color: white; }
+.sports-section .text-muted { color: rgba(255,255,255,0.7) !important; }
+.sports-section .section-badge { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.9); border-color: rgba(255,255,255,0.2); }
+.sports-card {
+    background: rgba(255,255,255,0.08); backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 16px;
+    padding: 28px; color: white; height: 100%;
+    transition: all 0.3s;
+}
+.sports-card:hover { background: rgba(255,255,255,0.12); transform: translateY(-3px); }
+.sports-card-header { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+.sports-icon { font-size: 2.5rem; }
+.sports-name { font-size: 1.2rem; font-weight: 700; }
+.sports-desc { color: rgba(255,255,255,0.8); font-size: 14px; line-height: 1.7; margin-bottom: 16px; }
+.sports-highlights h6 { color: rgba(255,255,255,0.9); }
+.sports-badge {
+    background: rgba(255,193,7,0.15); color: var(--klp-gold);
+    border: 1px solid rgba(255,193,7,0.3); font-size: 12px; padding: 4px 10px;
+}
+.sports-extra-card {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 16px; padding: 28px; color: white;
+}
+.sport-icon-item { cursor: default; }
+.sport-emoji { font-size: 2.5rem; margin-bottom: 8px; }
+.sport-name { font-size: 13px; color: rgba(255,255,255,0.8); font-weight: 500; }
+
+/* ── Hiring Partners Slider ───────────────────────── */
+.partners-slider-wrapper {
+    overflow: hidden; border-radius: 12px;
+    position: relative; mask-image: linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%);
+}
+.partners-slider {
+    display: flex; gap: 20px;
+    animation: scrollSlider 40s linear infinite;
+    width: max-content;
+}
+.partners-slider:hover { animation-play-state: paused; }
+@keyframes scrollSlider {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+}
+.partner-slide { flex-shrink: 0; width: 200px; }
+.partner-card {
+    background: white; border-radius: 12px; padding: 24px 16px;
+    border: 1px solid #e8eaed;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    text-align: center; height: 140px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    transition: box-shadow 0.2s;
+}
+.partner-card:hover { box-shadow: 0 6px 20px rgba(26,35,126,0.12); }
+.partner-logo-placeholder {
+    width: 56px; height: 56px; border-radius: 12px;
+    background: linear-gradient(135deg, var(--klp-navy), var(--klp-blue));
+    color: white; font-weight: 800; font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 10px;
+}
+.partner-name { font-weight: 700; font-size: 13px; color: #1a1a2e; line-height: 1.2; margin-bottom: 4px; }
+.partner-sector { font-size: 11px; color: #6b7280; }
+
+/* ── UBTER Section ────────────────────────────────── */
+.bg-primary-dark { background: linear-gradient(135deg, #0a0f3d 0%, var(--klp-navy) 100%); }
+.ubter-card {
+    background: rgba(255,255,255,0.07); backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.15); border-radius: 16px;
+    padding: 28px; height: 100%;
+}
+.ubter-card-icon {
+    font-size: 2rem; color: var(--klp-gold);
+    margin-bottom: 16px; display: block;
+}
+.text-white-75 { color: rgba(255,255,255,0.75) !important; }
+.text-white-50 { color: rgba(255,255,255,0.5) !important; }
+
+/* ── Result CTA ───────────────────────────────────── */
+.result-cta-section {
+    background: linear-gradient(135deg, #c62828 0%, #b71c1c 100%);
+}
+.result-cta-box { max-width: 700px; margin: 0 auto; }
+.result-cta-icon {
+    font-size: 4rem; color: var(--klp-gold);
+    animation: pulseGlow 2s ease-in-out infinite alternate;
+}
+@keyframes pulseGlow {
+    from { filter: drop-shadow(0 0 10px rgba(255,193,7,0.3)); }
+    to   { filter: drop-shadow(0 0 30px rgba(255,193,7,0.8)); }
+}
+
+/* ── Footer ───────────────────────────────────────── */
+.klp-footer {
+    background: linear-gradient(135deg, #0a0f3d 0%, #1a237e 100%);
+}
+.footer-logo-circle {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: var(--klp-gold); color: var(--klp-navy);
+    font-weight: 900; font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+}
+.footer-links { padding: 0; }
+.footer-links li { margin-bottom: 8px; }
+.footer-links a {
+    color: rgba(255,255,255,0.65); text-decoration: none; font-size: 14px;
+    transition: color 0.2s;
+}
+.footer-links a:hover { color: var(--klp-gold); }
+.ls-wider { letter-spacing: 1px; }
+
+/* ═══ RESULT PAGES ════════════════════════════════ */
+
+/* Search page background */
+.result-search-page {
+    background: linear-gradient(135deg, #1a237e 0%, #0d47a1 60%, #1565c0 100%);
+    min-height: 100vh;
+}
+.result-search-badge { color: var(--klp-gold); }
+.divider-gold {
+    width: 50px; height: 3px; background: var(--klp-gold); border-radius: 2px;
+}
+.result-search-card {
+    background: white; border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    overflow: hidden;
+}
+.result-search-card-header {
+    background: linear-gradient(135deg, var(--klp-navy), var(--klp-blue));
+    color: white; padding: 16px 24px; font-weight: 700; font-size: 1.1rem;
+}
+.result-search-card-body { padding: 28px; }
+.result-info-box {
+    border: 1px solid; border-radius: 10px; padding: 16px 12px;
+    text-align: center; background: #f8f9fc; font-size: 13px; color: #4b5563;
+}
+
+/* Marksheet */
+.marksheet-container {
+    background: white; border-radius: 12px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.12);
+    overflow: hidden; margin-bottom: 20px;
+}
+.marksheet-header {
+    background: linear-gradient(135deg, var(--klp-navy), var(--klp-blue));
+    padding: 20px; color: white;
+}
+.marksheet-logo {
+    width: 70px; height: 70px; border-radius: 50%;
+    background: var(--klp-gold); color: var(--klp-navy);
+    font-weight: 900; font-size: 20px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto;
+}
+.marksheet-logo-right { text-align: center; }
+.college-main-name {
+    font-size: 1.3rem; font-weight: 800; letter-spacing: 0.5px;
+}
+.college-sub-name { font-size: 12px; color: rgba(255,255,255,0.8); margin-top: 4px; }
+.college-sub-name2 { font-size: 11px; color: rgba(255,255,255,0.65); }
+.college-location { font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 4px; }
+
+.marksheet-title-band {
+    background: #c62828; color: white;
+    text-align: center; padding: 10px;
+    font-weight: 800; font-size: 1.1rem; letter-spacing: 2px;
+}
+.marksheet-section { padding: 16px 20px; border-bottom: 1px solid #e8eaed; }
+.marksheet-section:last-child { border-bottom: none; }
+
+.marksheet-info-table { font-size: 14px; margin-bottom: 0; }
+.info-label {
+    background: #f0f3ff; color: var(--klp-navy);
+    font-weight: 600; font-size: 12px; text-transform: uppercase; width: 20%;
+}
+.info-value { font-weight: 500; }
+
+.subject-section-title {
+    padding: 8px 14px; font-weight: 700; color: white;
+    border-radius: 6px; margin-bottom: 10px; font-size: 14px;
+    letter-spacing: 1px;
+}
+.theory-title   { background: var(--klp-navy); }
+.practical-title { background: var(--klp-green); }
+
+.marksheet-subjects-table { font-size: 13px; }
+.theory-thead th   { background: #e8eaf6 !important; color: var(--klp-navy); font-size: 12px; }
+.practical-thead th { background: #e8f5e9 !important; color: var(--klp-green); font-size: 12px; }
+.total-row { background: #f0f3ff; font-weight: 700; }
+
+.grade-badge {
+    background: var(--klp-navy); color: white;
+    padding: 2px 8px; border-radius: 4px; font-size: 12px;
+}
+.result-badge { padding: 3px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; }
+.result-pass  { background: #dcfce7; color: #166534; }
+.result-fail  { background: #fee2e2; color: #991b1b; }
+
+.result-summary-table { font-size: 14px; }
+.summary-label { background: #f0f3ff; color: var(--klp-navy); font-weight: 600; width: 22%; }
+.summary-value { font-weight: 600; }
+
+.semester-result-box {
+    padding: 12px; font-size: 1rem; font-weight: 700; letter-spacing: 1px;
+    text-align: center; height: 100%; display: flex; align-items: center; justify-content: center;
+}
+.result-pass-box   { background: #dcfce7; color: #166534; }
+.result-fail-box   { background: #fee2e2; color: #991b1b; }
+.result-neutral-box { background: #f0f3ff; color: var(--klp-navy); }
+
+.signatures-section .row { padding-top: 8px; }
+.signature-line {
+    border-bottom: 1px solid #555; width: 80%;
+    margin: 0 auto 8px; margin-top: 40px;
+}
+.signature-label { font-size: 12px; font-weight: 600; color: #444; }
+
+.marksheet-footer-note {
+    padding: 10px 20px; background: #f8f9fc;
+    font-size: 11px; color: #6b7280; text-align: center;
+}
+
+/* ═══ ADMIN PAGES ════════════════════════════════ */
+
+/* Admin Login */
+.admin-login-page {
+    background: linear-gradient(135deg, #0a0f3d 0%, #1a237e 100%);
+    min-height: 100vh;
+}
+.admin-login-card {
+    background: white; border-radius: 16px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.4); overflow: hidden;
+}
+.admin-login-header {
+    background: linear-gradient(135deg, #0a0f3d, var(--klp-navy));
+    padding: 32px 28px;
+}
+.admin-shield-icon {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: var(--klp-gold); color: var(--klp-navy);
+    font-size: 2rem; display: flex; align-items: center; justify-content: center;
+    margin: 0 auto; box-shadow: 0 4px 20px rgba(255,193,7,0.4);
+}
+.admin-login-body { padding: 28px; }
+.admin-security-notice {
+    background: #fef3c7; border-radius: 8px; padding: 12px 14px;
+    border: 1px solid #fcd34d; display: flex; align-items: flex-start; gap: 8px;
+}
+
+/* Admin Dashboard */
+.admin-dashboard-header {
+    padding: 12px 0; margin-bottom: 0;
+}
+.admin-stat-card {
+    border-radius: 14px; padding: 24px 20px;
+    display: flex; flex-direction: column; gap: 4px;
+    position: relative; overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+.admin-stat-icon { font-size: 2rem; opacity: 0.5; position: absolute; right: 16px; top: 16px; }
+.admin-stat-num { font-size: 2.5rem; font-weight: 800; line-height: 1; }
+.admin-stat-label { font-size: 13px; opacity: 0.8; font-weight: 500; }
+
+.admin-quick-action-card {
+    display: block; background: white; border-radius: 14px; padding: 24px;
+    border: 1px solid #e8eaed; text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: all 0.2s; color: #2c2c2c;
+}
+.admin-quick-action-card:hover {
+    transform: translateY(-3px); box-shadow: 0 8px 24px rgba(26,35,126,0.12);
+    border-color: var(--klp-navy);
+}
+.admin-quick-action-card h6 { color: #1a1a2e; }
+
+.admin-table-card {
+    background: white; border-radius: 14px; overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08); border: 1px solid #e8eaed;
+}
+.admin-table-header {
+    background: linear-gradient(135deg, var(--klp-navy), var(--klp-blue));
+    color: white; padding: 16px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+}
+.admin-table-header h5 { color: white; }
+.table th { font-size: 13px; font-weight: 700; color: #374151; background: #f9fafb; }
+.table td { font-size: 13px; vertical-align: middle; }
+
+/* Admin Form Card */
+.admin-form-card {
+    background: white; border-radius: 14px; overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08); border: 1px solid #e8eaed;
+}
+.admin-form-header {
+    background: linear-gradient(135deg, var(--klp-navy), var(--klp-blue));
+    color: white; padding: 20px 28px;
+}
+.admin-form-body { padding: 28px; }
+.form-section-title {
+    font-weight: 700; font-size: 14px; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--klp-navy);
+    border-bottom: 2px solid #e8eaed; padding-bottom: 8px; margin-bottom: 16px; margin-top: 8px;
+}
+.required-field::after { content: ' *'; color: #c62828; }
+
+/* Student banner in subject form */
+.student-info-banner {
+    background: linear-gradient(135deg, var(--klp-navy), var(--klp-blue));
+    border-radius: 12px; padding: 16px 24px;
+}
+.student-avatar {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: var(--klp-gold); color: var(--klp-navy);
+    font-weight: 900; font-size: 20px;
+    display: flex; align-items: center; justify-content: center;
+}
+
+/* Subject section styling */
+.subject-section { border-radius: 10px; overflow: hidden; border: 1px solid #e8eaed; }
+.subject-section-header {
+    padding: 12px 18px; font-weight: 700; color: white; font-size: 15px;
+    display: flex; align-items: center;
+}
+.theory-bg   { background: var(--klp-navy); }
+.practical-bg { background: var(--klp-green); }
+
+/* Student view info pairs */
+.info-pair {
+    padding: 12px 16px; background: #f8f9fc; border-radius: 8px; border: 1px solid #e8eaed;
+}
+.info-pair-label { font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+.info-pair-value { font-weight: 600; color: #1a1a2e; }
+
+/* ── Responsive tweaks ─────────────────────────── */
+@media (max-width: 768px) {
+    .hero-title { font-size: 1.8rem; }
+    .hero-subtitle { font-size: 1.2rem; }
+    .klp-logo-large { width: 100px; height: 100px; }
+    .founder-frame { width: 120px; height: 160px; }
+    .section-title { font-size: 1.6rem; }
+}
+@media (max-width: 576px) {
+    .admin-form-body { padding: 16px; }
+    .marksheet-header { padding: 12px; }
+    .college-main-name { font-size: 1rem; }
+}
+
+================================================================================  END OF: static/css/style.css  =====
+
+
+################################################################################
+#  FILE 18 of 18: static/js/main.js
+#  TYPE: JAVASCRIPT
+#  PURPOSE: Navbar scroll effect + smooth scrolling
+################################################################################
+
+/**
+ * KLP Roorkee — Main JavaScript
+ * Handles: smooth scrolling, navbar scroll effect, partner slider
+ */
+
+// ── Navbar scroll effect ──────────────────────────────────────────────────────
+// Adds a subtle shadow on scroll
+window.addEventListener('scroll', function () {
+    const nav = document.getElementById('mainNav');
+    if (!nav) return;
+    if (window.scrollY > 50) {
+        nav.style.boxShadow = '0 4px 30px rgba(0,0,0,0.4)';
+    } else {
+        nav.style.boxShadow = '0 2px 20px rgba(0,0,0,0.3)';
+    }
+});
+
+// ── Smooth scroll for anchor links ───────────────────────────────────────────
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+    anchor.addEventListener('click', function (e) {
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+            e.preventDefault();
+            const offset = 80; // navbar height
+            const top = target.getBoundingClientRect().top + window.scrollY - offset;
+            window.scrollTo({ top, behavior: 'smooth' });
+        }
+    });
+});
+
+// ── Auto-dismiss flash alerts after 5 seconds ─────────────────────────────────
+document.addEventListener('DOMContentLoaded', function () {
+    const alerts = document.querySelectorAll('.alert.alert-dismissible');
+    alerts.forEach(alert => {
+        setTimeout(() => {
+            // Bootstrap 5 dismiss
+            const bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+            if (bsAlert) bsAlert.close();
+        }, 5000);
+    });
+});
+
+================================================================================  END OF: static/js/main.js  =====
+
+
+================================================================================
+  END OF ALL CODE — Total files: 18
+================================================================================

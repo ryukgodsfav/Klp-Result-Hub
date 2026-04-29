@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+{% block title %}Result — {{ student.name }} | KLP Roorkee{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Print-specific styles for clean marksheet printing */
+    @media print {
+        .no-print { display: none !important; }
+        .marksheet-container { box-shadow: none !important; border: 1px solid #ccc; }
+        .navbar, footer { display: none !important; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+    <!-- Action bar (top) -->
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+        <a href="{{ url_for('result.result_home') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Back to Search
+        </a>
+        <div class="d-flex gap-2">
+            <button onclick="window.print()" class="btn btn-secondary">
+                <i class="bi bi-printer me-2"></i>Print
+            </button>
+            <a href="{{ url_for('result.download_pdf', student_id=student.id) }}" class="btn btn-danger fw-bold">
+                <i class="bi bi-file-earmark-pdf me-2"></i>Download PDF
+            </a>
+        </div>
+    </div>
+
+    <!-- Marksheet card -->
+    <div class="marksheet-container">
+
+        <!-- College Header -->
+        <div class="marksheet-header">
+            <div class="row align-items-center">
+                <div class="col-2 text-center">
+                    <div class="marksheet-logo">KLP</div>
+                </div>
+                <div class="col-8 text-center">
+                    <h3 class="college-main-name mb-0">KANHAIYA LAL POLYTECHNIC ROORKEE</h3>
+                    <div class="college-sub-name">Affiliated to Uttarakhand Board of Technical Education (UBTER), Dehradun</div>
+                    <div class="college-sub-name2">Approved by All India Council for Technical Education (AICTE), New Delhi</div>
+                    <div class="college-location"><i class="bi bi-geo-alt-fill me-1"></i>Roorkee, Haridwar, Uttarakhand — 247667</div>
+                </div>
+                <div class="col-2 text-center">
+                    <div class="marksheet-logo-right">
+                        <i class="bi bi-award-fill text-warning fs-2"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Title Band -->
+        <div class="marksheet-title-band">
+            SEMESTER MARK SHEET
+        </div>
+
+        <!-- Student Details Table -->
+        <div class="marksheet-section">
+            <table class="table table-bordered marksheet-info-table">
+                <tbody>
+                    <tr>
+                        <th class="info-label" width="20%">Student Name</th>
+                        <td class="info-value" width="30%"><strong>{{ student.name }}</strong></td>
+                        <th class="info-label" width="20%">Roll Number</th>
+                        <td class="info-value" width="30%"><strong>{{ student.roll_number }}</strong></td>
+                    </tr>
+                    <tr>
+                        <th class="info-label">Enrollment No.</th>
+                        <td class="info-value">{{ student.enrollment_no }}</td>
+                        <th class="info-label">Father's Name</th>
+                        <td class="info-value">{{ student.father_name }}</td>
+                    </tr>
+                    <tr>
+                        <th class="info-label">Branch / Department</th>
+                        <td class="info-value">{{ student.branch }}</td>
+                        <th class="info-label">Category</th>
+                        <td class="info-value">{{ student.category }}</td>
+                    </tr>
+                    <tr>
+                        <th class="info-label">Institution</th>
+                        <td class="info-value" colspan="3">{{ student.institution }}</td>
+                    </tr>
+                    <tr>
+                        <th class="info-label">Semester</th>
+                        <td class="info-value">Semester {{ student.semester }}</td>
+                        <th class="info-label">Academic Year</th>
+                        <td class="info-value">{{ student.academic_year }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Theory Subjects -->
+        {% if theory_subjects %}
+        <div class="marksheet-section">
+            <div class="subject-section-title theory-title">
+                <i class="bi bi-book me-2"></i>THEORY SUBJECTS
+            </div>
+            <table class="table table-bordered marksheet-subjects-table">
+                <thead class="theory-thead">
+                    <tr>
+                        <th width="5%">S.No.</th>
+                        <th width="12%">Subject Code</th>
+                        <th width="38%">Subject Name</th>
+                        <th width="12%">Max Marks</th>
+                        <th width="14%">Marks Obtained</th>
+                        <th width="10%">Grade</th>
+                        <th width="9%">Result</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for subject in theory_subjects %}
+                    <tr>
+                        <td class="text-center">{{ loop.index }}</td>
+                        <td class="text-center fw-semibold">{{ subject.subject_code }}</td>
+                        <td>{{ subject.subject_name }}</td>
+                        <td class="text-center">{{ subject.max_marks }}</td>
+                        <td class="text-center fw-bold">{{ subject.marks_obtained }}</td>
+                        <td class="text-center">
+                            <span class="grade-badge">{{ subject.grade or '—' }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="result-badge {{ 'result-pass' if subject.result == 'PASS' else 'result-fail' if subject.result == 'FAIL' else '' }}">
+                                {{ subject.result or '—' }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <!-- Theory Total Row -->
+                    <tr class="total-row">
+                        <td colspan="3" class="text-end fw-bold">Theory Total</td>
+                        <td class="text-center fw-bold">{{ theory_total_max }}</td>
+                        <td class="text-center fw-bold">{{ theory_total_obtained }}</td>
+                        <td colspan="2" class="text-center text-muted">—</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <!-- Practical Subjects -->
+        {% if practical_subjects %}
+        <div class="marksheet-section">
+            <div class="subject-section-title practical-title">
+                <i class="bi bi-wrench-adjustable me-2"></i>PRACTICAL SUBJECTS
+            </div>
+            <table class="table table-bordered marksheet-subjects-table">
+                <thead class="practical-thead">
+                    <tr>
+                        <th width="5%">S.No.</th>
+                        <th width="12%">Subject Code</th>
+                        <th width="38%">Subject Name</th>
+                        <th width="12%">Max Marks</th>
+                        <th width="14%">Marks Obtained</th>
+                        <th width="10%">Grade</th>
+                        <th width="9%">Result</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for subject in practical_subjects %}
+                    <tr>
+                        <td class="text-center">{{ loop.index }}</td>
+                        <td class="text-center fw-semibold">{{ subject.subject_code }}</td>
+                        <td>{{ subject.subject_name }}</td>
+                        <td class="text-center">{{ subject.max_marks }}</td>
+                        <td class="text-center fw-bold">{{ subject.marks_obtained }}</td>
+                        <td class="text-center">
+                            <span class="grade-badge">{{ subject.grade or '—' }}</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="result-badge {{ 'result-pass' if subject.result == 'PASS' else 'result-fail' if subject.result == 'FAIL' else '' }}">
+                                {{ subject.result or '—' }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <!-- Practical Total Row -->
+                    <tr class="total-row">
+                        <td colspan="3" class="text-end fw-bold">Practical Total</td>
+                        <td class="text-center fw-bold">{{ practical_total_max }}</td>
+                        <td class="text-center fw-bold">{{ practical_total_obtained }}</td>
+                        <td colspan="2" class="text-center text-muted">—</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <!-- Grand Summary -->
+        <div class="marksheet-section">
+            <div class="result-summary-table">
+                <table class="table table-bordered mb-0">
+                    <tbody>
+                        <tr>
+                            <th class="summary-label">Grand Total (Max)</th>
+                            <td class="summary-value fw-bold">{{ grand_total_max }}</td>
+                            <th class="summary-label">Total Marks Obtained</th>
+                            <td class="summary-value fw-bold">{{ grand_total_obtained }}</td>
+                        </tr>
+                        <tr>
+                            <th class="summary-label">Percentage</th>
+                            <td class="summary-value fw-bold">
+                                {% if grand_total_max > 0 %}
+                                    {{ "%.2f"|format(grand_total_obtained / grand_total_max * 100) }}%
+                                {% else %}N/A{% endif %}
+                            </td>
+                            <th class="summary-label">Division</th>
+                            <td class="summary-value fw-bold">
+                                {% if grand_total_max > 0 %}
+                                    {% set pct = grand_total_obtained / grand_total_max * 100 %}
+                                    {% if pct >= 60 %}First Division
+                                    {% elif pct >= 45 %}Second Division
+                                    {% elif pct >= 33 %}Third Division
+                                    {% else %}Fail{% endif %}
+                                {% else %}N/A{% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th class="summary-label">SGPA</th>
+                            <td class="summary-value fw-bold">{{ student.sgpa or 'N/A' }}</td>
+                            <th class="summary-label">CGPA (Till This Sem)</th>
+                            <td class="summary-value fw-bold">{{ student.cgpa or 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="2" class="text-center p-0">
+                                <div class="semester-result-box {% if student.semester_result == 'PASS' %}result-pass-box{% elif student.semester_result == 'FAIL' %}result-fail-box{% else %}result-neutral-box{% endif %}">
+                                    SEMESTER RESULT: <strong>{{ student.semester_result or 'N/A' }}</strong>
+                                </div>
+                            </td>
+                            <td colspan="2" class="text-center p-0">
+                                <div class="semester-result-box result-neutral-box">
+                                    Semester <strong>{{ student.semester }}</strong> | Year <strong>{{ student.academic_year }}</strong>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Signatures -->
+        <div class="marksheet-section signatures-section">
+            <div class="row text-center">
+                <div class="col-4">
+                    <div class="signature-line"></div>
+                    <div class="signature-label">Student's Signature</div>
+                </div>
+                <div class="col-4">
+                    <div class="signature-line"></div>
+                    <div class="signature-label">Examination Controller<br><small>KLP Roorkee</small></div>
+                </div>
+                <div class="col-4">
+                    <div class="signature-line"></div>
+                    <div class="signature-label">Principal<br><small>KLP Roorkee</small></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer note -->
+        <div class="marksheet-footer-note">
+            <i class="bi bi-info-circle me-1"></i>
+            This is a computer-generated statement. Official seal &amp; signature required for verification purposes.
+            For queries: <strong>info@klproorkee.edu.in</strong> | <strong>+91-1332-XXXXXX</strong>
+        </div>
+    </div>
+
+    <!-- Bottom actions -->
+    <div class="d-flex justify-content-between align-items-center mt-4 no-print">
+        <a href="{{ url_for('result.result_home') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-2"></i>Search Another
+        </a>
+        <div class="d-flex gap-2">
+            <button onclick="window.print()" class="btn btn-secondary">
+                <i class="bi bi-printer me-2"></i>Print Marksheet
+            </button>
+            <a href="{{ url_for('result.download_pdf', student_id=student.id) }}" class="btn btn-danger btn-lg fw-bold">
+                <i class="bi bi-file-earmark-pdf me-2"></i>Download PDF
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

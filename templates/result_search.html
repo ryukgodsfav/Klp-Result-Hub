@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Student Result — KLP Roorkee{% endblock %}
+
+{% block content %}
+<div class="result-search-page min-vh-100 d-flex flex-column justify-content-center py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-6 col-md-8">
+
+                <!-- Header -->
+                <div class="text-center mb-4">
+                    <div class="result-search-badge">
+                        <i class="bi bi-award-fill fs-1 text-warning"></i>
+                    </div>
+                    <h2 class="fw-black mt-3 text-white">Student Result Portal</h2>
+                    <p class="text-white-75">Kanhaiya Lal Polytechnic Roorkee</p>
+                    <div class="divider-gold mx-auto mt-2"></div>
+                </div>
+
+                <!-- Search Card -->
+                <div class="result-search-card">
+                    <div class="result-search-card-header">
+                        <i class="bi bi-search me-2"></i>Search Your Result
+                    </div>
+                    <div class="result-search-card-body">
+                        <p class="text-muted text-center mb-4">
+                            Enter your <strong>Roll Number</strong> or <strong>Enrollment Number</strong> to view your semester marksheet.
+                        </p>
+
+                        <form method="POST" action="{{ url_for('result.result_home') }}" novalidate>
+                            <div class="mb-4">
+                                <label for="roll_number" class="form-label fw-semibold">
+                                    Roll Number / Enrollment Number
+                                </label>
+                                <div class="input-group input-group-lg">
+                                    <span class="input-group-text bg-primary text-white border-primary">
+                                        <i class="bi bi-person-badge"></i>
+                                    </span>
+                                    <input
+                                        type="text"
+                                        class="form-control border-primary"
+                                        id="roll_number"
+                                        name="roll_number"
+                                        placeholder="e.g. 2301001 or ENR2301001"
+                                        autocomplete="off"
+                                        required
+                                        autofocus
+                                    >
+                                </div>
+                                <div class="form-text text-muted mt-2">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    You can search using either your Roll Number or your Enrollment Number.
+                                </div>
+                            </div>
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg fw-bold">
+                                    <i class="bi bi-search me-2"></i>Find My Result
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Info boxes -->
+                        <div class="row g-2 mt-4">
+                            <div class="col-6">
+                                <div class="result-info-box border-primary">
+                                    <i class="bi bi-file-earmark-pdf text-danger fs-4 mb-1"></i>
+                                    <div class="small">Download PDF marksheet after searching</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="result-info-box border-success">
+                                    <i class="bi bi-shield-check text-success fs-4 mb-1"></i>
+                                    <div class="small">Official result as per UBTER records</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Back to home -->
+                <div class="text-center mt-4">
+                    <a href="{{ url_for('main.home') }}" class="btn btn-outline-light">
+                        <i class="bi bi-arrow-left me-2"></i>Back to Home
+                    </a>
+                </div>
+
+                <!-- Helpline -->
+                <div class="text-center mt-3 text-white-50 small">
+                    <i class="bi bi-telephone me-1"></i>For result queries, contact: <strong class="text-white">+91-1332-XXXXXX</strong>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
